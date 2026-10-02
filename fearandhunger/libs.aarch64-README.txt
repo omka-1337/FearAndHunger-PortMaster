@@ -1,0 +1,14 @@
+These are the libraries NW.js needs and handheld firmware does not ship.
+
+Chromium links against a desktop system: X11, NSS, ATK, AT-SPI, CUPS, GBM and
+xkbcommon, plus what those pull in. On KNULLI (RG40XX-V, gladiator-ii) every one
+of the sixteen it asks for was absent, so the port carries them and their whole
+dependency closure, 57 libraries in all.
+
+They are stock Debian bookworm arm64 binaries, unmodified, listed with their
+source packages in MANIFEST.txt. Rebuild the folder with ./fetch-libs.sh.
+
+Libraries the firmware does have are deliberately not overridden: glib, gobject,
+gio, cairo, pango, dbus, expat, udev and alsa stay the system's own.
+
+If the launcher still reports something missing on your device, send the list.

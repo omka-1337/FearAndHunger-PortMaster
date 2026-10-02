@@ -1,0 +1,34 @@
+# Fear & Hunger - gamepad to keyboard, for gptokeyb2.
+#
+# The game is keyboard only: no gamepad plugin is enabled, and YEP_KeyboardConfig
+# keeps RPG Maker MV's stock bindings. Z confirms, X cancels and opens the menu,
+# Shift dashes, Q and W page through long lists, and DK_Name_Input adds backspace
+# for the name entry screen.
+#
+# Face buttons follow the device's own labels: on a Nintendo style layout the
+# bottom button is B, and that is the one that confirms.
+
+back = esc
+start = esc
+
+a = z
+b = x
+x = shift
+y = backspace
+
+l1 = q
+r1 = w
+l2 = pageup
+r2 = pagedown
+
+up = up
+down = down
+left = left
+right = right
+
+left_analog_up = up
+left_analog_down = down
+left_analog_left = left
+left_analog_right = right
+
+# Quitting is gptokeyb2's own START+SELECT combo, nothing to configure here.

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./Fear &amp; Hunger.sh</path>
+    <name>Fear &amp; Hunger</name>
+    <desc>A survival horror RPG set in the dungeons below Le'garde's failed expedition. Fight things that take your limbs, barter with gods that take more, and learn that in these halls a saved game is a resource like any other. Dark, slow and deliberately unfair.</desc>
+    <developer>Miro Haverinen</developer>
+    <publisher>Miro Haverinen</publisher>
+    <genre>Role-playing game (RPG)</genre>
+    <image>./fearandhunger/cover.png</image>
+  </game>
+</gameList>

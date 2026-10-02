@@ -1,0 +1,41 @@
+{
+    "version": 4,
+    "name": "fearandhunger.zip",
+    "items": [
+        "Fear & Hunger.sh",
+        "fearandhunger"
+    ],
+    "items_opt": null,
+    "attr": {
+        "title": "Fear & Hunger",
+        "porter": [
+            "Omka1337"
+        ],
+        "desc": "Descend into the dungeons of Fear & Hunger, a brutal survival horror RPG where limbs come off, the dark is real and saving costs you something. RPG Maker MV on an NW.js runtime.",
+        "desc_md": null,
+        "inst": "Copy the www/ folder from your own Steam installation into the fearandhunger/ folder, alongside the engine. Then run fearandhunger/tools/optimize_audio.py over www/audio on a PC: without it the game needs more memory than a 1 GB device has. See README.md.",
+        "inst_md": null,
+        "genres": [
+            "rpg",
+            "survival"
+        ],
+        "image": {},
+        "rtr": false,
+        "exp": true,
+        "runtime": [],
+        "store": [
+            {
+                "store": "steam",
+                "id": "1002300"
+            }
+        ],
+        "availability": "paid",
+        "reqs": [
+            "glibc"
+        ],
+        "arch": [
+            "aarch64"
+        ],
+        "min_glibc": ""
+    }
+}

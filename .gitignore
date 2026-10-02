@@ -1,0 +1,22 @@
+# Game files — the game is paid, users supply their own copy.
+fearandhunger/www/
+
+# The NW.js runtime, fetched by ./fetch-runtime.sh. libnw.so alone is 283 MB,
+# past GitHub's per-file limit, so it is never committed.
+fearandhunger/nwjs/
+
+# Chromium's missing system libraries, built by ./fetch-libs.sh from Debian.
+fearandhunger/libs.aarch64/
+
+
+# Runtime artefacts
+fearandhunger/userdata/
+fearandhunger/log.txt
+fearandhunger/log-game.txt
+
+# Build output
+dist/
+*.zip
+
+# Other
+testing_thread.txt

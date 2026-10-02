@@ -1,0 +1,16 @@
+{
+    "name": "fearandhunger",
+    "main": "www/index.html",
+    "js-flags": "--expose-gc --max-old-space-size=256",
+    "inject_js_start": "patch.js",
+    "chromium-args": "--allow-file-access-from-files --autoplay-policy=no-user-gesture-required --disable-features=CalculateNativeWinOcclusion --ignore-gpu-blocklist --enable-gpu-rasterization --disable-software-rasterizer --disable-dev-shm-usage --renderer-process-limit=1 --force-device-scale-factor=1 --disable-crash-reporter --no-sandbox",
+    "window": {
+        "title": "Fear & Hunger",
+        "toolbar": false,
+        "frame": false,
+        "fullscreen": true,
+        "width": 816,
+        "height": 624,
+        "icon": "www/icon/icon.png"
+    }
+}
