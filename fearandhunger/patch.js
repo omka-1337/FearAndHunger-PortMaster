@@ -55,9 +55,13 @@
         // frame longer again, which asks for a third step. It is a cliff with a 0.25 s
         // floor, so up to 15 logic steps can land in one pass, and it is the best
         // explanation anyone has for both the dungeon frame rate and the stalls when
-        // a window opens. 1 means never catch up: under load the game runs slower
-        // instead of freezing. 0 leaves the plugin's own loop alone.
-        maxSteps:    parseInt(process.env.FNH_MAX_STEPS || '1', 10),
+        // a window opens. 1 means never catch up, and on hardware that renders at
+        // 20 fps that is the game running at a third of its proper speed - smooth and
+        // wrong. 2 was the setting that felt right on an RG40XX V: the logic lands at
+        // 20-50 Hz while walking a dungeon, close enough to real time, and the cliff
+        // still cannot build because two is the ceiling. 0 leaves the plugin's own
+        // loop alone, cliff included.
+        maxSteps:    parseInt(process.env.FNH_MAX_STEPS || '2', 10),
         // 0 none, 1 sprites only, 2 sprites and event logic. See section 5.
         cull:        parseInt(process.env.FNH_CULL || '2', 10),
         // Smallest gap in ms between two full page condition refreshes. Hunger and

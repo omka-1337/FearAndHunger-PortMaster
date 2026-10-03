@@ -110,6 +110,30 @@ the default here is higher than the game's own, not lower. And decrypting the as
 worth doing for the CPU it saves, changed the read volume barely at all - the reads were
 the kernel paging the engine, not the game loading art.
 
+### Measured on hardware after the timestep cap
+
+Walking a dungeon on an RG40XX V (map 6, 271 events), render scale 0.6, zram up, with the
+off-screen culling and the refresh throttle on and the fixed timestep capped at two steps:
+
+| | |
+|--|--|
+| frame rate | 10-26 fps, 1.8-2.0 logic steps per frame |
+| `Game_Map.update` | 9-19 ms |
+| `Spriteset_Map.update` | 6-10 ms |
+| rendering | 5-11 ms |
+| culled | 50-78% of events and their sprites |
+| refreshes skipped | 250-750 per 10 s |
+
+Against 63 ms a frame before any of it, the CPU side is roughly four times cheaper. Capping
+at one step is smoother still but runs the game at a third of its proper speed, which is
+worse to play than a lower frame rate; two steps keeps the logic at 20-50 Hz.
+
+What is left is not CPU. Measured work adds up to 25-36 ms while frames take 40-100 ms, and
+sitting in a menu with no logic running at all still reports 20.7 fps - which is exactly 60/3,
+a frame missing its vblank and landing on every third one. The next thing worth trying is
+hiding the culled sprites rather than only skipping their updates: PIXI still walks and
+submits all 333 of them every frame.
+
 ### Where a frame goes
 
 `FNH_FRAMEPROF=1` splits each frame into map logic, sprites and drawing, and names what
