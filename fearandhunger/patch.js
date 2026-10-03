@@ -63,11 +63,27 @@
         // loop alone, cliff included.
         maxSteps:    parseInt(process.env.FNH_MAX_STEPS || '2', 10),
         // 0 none, 1 sprites only, 2 sprites and event logic. See section 5.
-        cull:        parseInt(process.env.FNH_CULL || '2', 10),
+        // 0 updates everything. 1 skips the logic of events that are off screen and
+        // have no reason to run, which is where almost all of the saving is and which
+        // nothing can see. 2 also skips their sprites - cheaper again, but a sprite
+        // that has not updated has not loaded its bitmap either, so a character walked
+        // towards appears late and at arm's length. That is why 2 is not the default.
+        cull:        parseInt(process.env.FNH_CULL || '1', 10),
         // Smallest gap in ms between two full page condition refreshes. Hunger and
         // sanity tick constantly here, and every tick re-evaluates the pages of every
         // event on the map. 0 refreshes as shipped.
-        refreshMs:   parseInt(process.env.FNH_REFRESH_MS || '50', 10)
+        refreshMs:   parseInt(process.env.FNH_REFRESH_MS || '50', 10),
+        // How many of a map's fog layers to draw. 46 of the 169 maps carry three
+        // <fog effect> blocks, and each one is a fullscreen TilingSprite with additive
+        // blending - three more screens of blended fill on top of the tilemap and the
+        // characters. A high number keeps the game as the author built it.
+        fogLayers:   parseInt(process.env.FNH_FOG || '99', 10),
+        // Fullscreen shader passes the game asks FilterController for. Map 124 alone
+        // creates two zoomblurs and an rgbsplit over the whole screen, and a zoom blur
+        // samples the frame dozens of times per pixel. None of it shows up in a CPU
+        // profile - the timers here measure the call that queues the work, not the GPU
+        // doing it - which is why 35 ms of a 37 ms frame had no owner. 0 turns them off.
+        filters:     parseInt(process.env.FNH_FILTERS || '99', 10)
     };
 
     // Counters the frame profiler reads. They live out here because the frame rate
@@ -352,17 +368,24 @@
             }
 
             var last = performance.now(), window10 = last;
+            var prev = { map: 0, sprites: 0, render: 0 };
             (function frameTick() {
                 var now = performance.now();
                 var dt = now - last;
                 last = now;
                 frames++;
 
+                // Deltas, not totals: acc keeps running until the ten second summary, so
+                // reporting it directly made a 105 ms frame claim 810 ms of map time.
+                var dMap = acc.map - prev.map, dSpr = acc.sprites - prev.sprites,
+                    dRen = acc.render - prev.render;
+                prev.map = acc.map; prev.sprites = acc.sprites; prev.render = acc.render;
+
                 if (dt > 100) {
                     slow++;
-                    log('SLOW FRAME ' + dt.toFixed(0) + 'ms  map=' + acc.map.toFixed(0) +
-                        ' sprites=' + acc.sprites.toFixed(0) + ' render=' + acc.render.toFixed(0) +
-                        '  other=' + Math.max(0, dt - acc.map - acc.sprites - acc.render).toFixed(0) +
+                    log('SLOW FRAME ' + dt.toFixed(0) + 'ms  map=' + dMap.toFixed(0) +
+                        ' sprites=' + dSpr.toFixed(0) + ' render=' + dRen.toFixed(0) +
+                        '  other=' + Math.max(0, dt - dMap - dSpr - dRen).toFixed(0) +
                         (loads.length ? '  loaded: ' + loads.join(', ') : '') +
                         '  map#' + (($gameMap && $gameMap.mapId && $gameMap.mapId()) || 0) +
                         ' events=' + (($gameMap && $gameMap.events && $gameMap.events().length) || 0));
@@ -407,6 +430,7 @@
                         offscreenPct = Math.round(off / Math.max(evs.length, 1) * 100);
                     } catch (e) { offscreenPct = -1; }
                     acc.map = acc.sprites = acc.render = acc.events = 0;
+                    prev.map = prev.sprites = prev.render = 0;
                     acc.refresh = acc.interp = acc.light = 0; refreshes = 0;
                     frames = 0; slow = 0; window10 = now;
                 }
@@ -461,6 +485,39 @@
     });
 
     window.addEventListener('load', function () {
+        // Swallow FilterController's commands rather than unpicking its state: the
+        // plugin keys everything by the id in the command, so a create that never
+        // happened is a set that finds nothing and returns.
+        if (CFG.filters < 1 && typeof Game_Interpreter !== 'undefined') {
+            var FILTER_CMD = /^(createFilter|setFilter|moveFilter|moveFilterQ|eraseFilter|eraseFilterAfterMove|setFilterSpeed|enableFilter)$/i;
+            var _pluginCommand = Game_Interpreter.prototype.pluginCommand;
+            var dropped = 0;
+            Game_Interpreter.prototype.pluginCommand = function (command, args) {
+                if (FILTER_CMD.test(String(command))) {
+                    if (++dropped === 1) log('fullscreen filters disabled');
+                    return;
+                }
+                return _pluginCommand.apply(this, arguments);
+            };
+        }
+
+        // Fog layers above the cap are built as usual and then left out of the render
+        // pass. Hiding rather than skipping creation keeps VE_FogAndOverlay's own
+        // bookkeeping intact: it compares a sprite's blend mode and z against the map
+        // note every frame and rebuilds the fog if they disagree.
+        if (CFG.fogLayers < 99 && typeof Spriteset_Map !== 'undefined' &&
+                Spriteset_Map.prototype.createFog) {
+            var _createFog = Spriteset_Map.prototype.createFog;
+            Spriteset_Map.prototype.createFog = function (fogId) {
+                var r = _createFog.apply(this, arguments);
+                if (Number(fogId) > CFG.fogLayers && this._fogEffects && this._fogEffects[fogId]) {
+                    this._fogEffects[fogId].visible = false;
+                }
+                return r;
+            };
+            log('fog layers limited to ' + CFG.fogLayers);
+        }
+
         if (CFG.cacheMp && typeof ImageCache !== 'undefined') {
             // Community_Basic sets this from the game's own parameter when its plugin
             // loads, which happens before window load, so this lands after it.
@@ -527,7 +584,7 @@
         //
         // A sprite outside the view has nothing to show. The only states that outlive
         // the view are a requested animation and a balloon, so those keep updating.
-        if (CFG.cull >= 1 && typeof Sprite_Character !== 'undefined') {
+        if (CFG.cull >= 2 && typeof Sprite_Character !== 'undefined') {
             var _spriteUpdate = Sprite_Character.prototype.update;
             Sprite_Character.prototype.update = function () {
                 var c = this._character;
@@ -557,7 +614,7 @@
         //
         // isNearTheScreen is generous: it is a box one whole screen out in every
         // direction, so an event has a screen of warning before it matters.
-        if (CFG.cull >= 2 && typeof Game_Map !== 'undefined') {
+        if (CFG.cull >= 1 && typeof Game_Map !== 'undefined') {
             var keep = { screen: 0, forced: 0, moving: 0, page: 0, interp: 0, busy: 0, anim: 0 };
             perf.keep = keep;
             var needsUpdate = function (ev) {
