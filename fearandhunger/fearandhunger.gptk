@@ -5,16 +5,21 @@
 # Shift dashes, Q and W page through long lists, and DK_Name_Input adds backspace
 # for the name entry screen.
 #
-# Face buttons follow the device's own labels: on a Nintendo style layout the
-# bottom button is B, and that is the one that confirms.
+# Face buttons follow the device's own labels, and so does the firmware: the
+# RG40XX V's controller entry reads a:b1 b:b0, which maps SDL's A to the button
+# printed A and SDL's B to the one printed B, rather than SDL's usual "A is the
+# bottom button". So confirm goes on gptokeyb's b, which is the bottom button,
+# the one a player's thumb rests on and the one printed B. Getting this the
+# standard way round sends the menu key to the confirm button and makes battles
+# unplayable: every press reads as cancel.
 
 back = esc
 start = esc
 
-a = z
-b = x
-x = shift
-y = backspace
+a = escape
+b = enter
+x = backspace
+y = shift
 
 l1 = q
 r1 = w
