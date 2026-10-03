@@ -1,0 +1,56 @@
+# Builds the release archive and publishes it when a version tag is pushed.
+#
+# Neither the engine nor the system libraries live in git - libnw.so alone is past
+# GitHub's per-file limit - so the archive is assembled here from the two fetch
+# scripts, which pin what they download. That also means the published zip is
+# reproducible from the tag rather than from whatever happened to be on a laptop.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the NW.js runtime
+        run: ./fetch-runtime.sh
+
+      - name: Fetch the system libraries
+        run: ./fetch-libs.sh
+
+      - name: Build the archive
+        run: ./build-release.sh
+
+      - name: Check the archive carries no game files
+        run: |
+          if unzip -l dist/fearandhunger.zip | grep -qE '/www/|\.rpgmv'; then
+            echo "Game files found in the archive. Refusing to publish."
+            exit 1
+          fi
+          unzip -l dist/fearandhunger.zip | tail -1
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/fearandhunger.zip \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file .github/release-notes.md
+
+      - name: Keep the archive when run by hand
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fearandhunger-zip
+          path: dist/fearandhunger.zip
