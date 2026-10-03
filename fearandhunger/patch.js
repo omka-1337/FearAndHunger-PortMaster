@@ -26,9 +26,9 @@
     var CFG = {
         // Fraction of 816x624 to render into. Measured on a Mali-G31 at 640x480:
         // matching the panel exactly (0.77 here) ran the dungeons at 13-18 fps, while
-        // 0.55 held 60. The game puts a fullscreen additive fog layer over 138 of its
-        // maps and that is what the GPU chokes on, so this is the biggest single knob
-        // on these devices. 0 means match the panel: sharpest, and slowest.
+        // 0.55 held 60, which is the timestep cliff in section 5a as much as it is fill
+        // rate. 46 of the 169 maps carry fog, three fullscreen additive layers each, and
+        // the heaviest maps are among them. 0 means match the panel: sharpest, and slowest.
         renderScale: parseFloat(process.env.FNH_RENDER_SCALE || '0.6'),
         // Decoded audio costs duration x rate x channels x 4 bytes. 0 leaves it alone.
         audioHz:     parseInt(process.env.FNH_AUDIO_HZ || '22050', 10),

@@ -96,8 +96,11 @@ game read 1.5 GB off the card in ninety seconds while doing it.
 The launcher now sets up 1 GB of zstd zram when it finds no swap, and hands it back on
 exit. The same scene then ran at **13-18 fps**, and disk reads fell to 174 MB.
 
-The second limit is fill rate. The game puts a fullscreen additive fog layer over 138 of
-its 170 maps, which a Mali-G31 does not enjoy at native size, so the port renders at 60%
+The second limit is fill rate. Counted from the map data: 46 of the 169 maps carry fog, and
+each of those 46 carries **three** fullscreen layers of it at blend 1, which is additive.
+138 was an earlier count of `<fog effect>` tags rather than of maps. The heaviest maps are
+among the 46 (Map110 with 572 events, Map080 with 535, Map160 with 506), so the worst places
+in this game pay for the events and for the fill rate at once. The port renders at 60%
 of 816x624 by default and lets the panel scale it back up. `FNH_RENDER_SCALE=0` restores
 a pixel-exact frame for anyone on stronger hardware.
 
