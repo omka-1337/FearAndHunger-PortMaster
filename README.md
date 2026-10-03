@@ -2,6 +2,17 @@
 
 Thanks to [Miro Haverinen](https://store.steampowered.com/app/1002300/Fear__Hunger/) for creating Fear & Hunger, which is not interested in whether you are having a good time.
 
+**State: playable.** The game boots, plays, fights, saves and loads on an RG40XX V. It is not
+smooth - expect roughly 20 fps walking a dungeon, more in small rooms, less in the worst of
+them - but it is a game you can sit down and play rather than a technical demonstration.
+
+**ROCKNIX only, and that is not a preference.** The engine is Chromium, which draws through
+X11, Wayland or DRM/KMS and nothing else. KNULLI on this hardware drives the panel through
+the framebuffer with Arm's `mali_kbase` blob, which exposes no DRM at all: no `/dev/dri`, no
+X server, and no compositor that could be installed. The same device under ROCKNIX runs a
+mainline kernel with Panfrost and sway, and that is where this port works. Any other firmware
+with DRM/KMS graphics should be fine; the launcher checks and says so by name if it is not.
+
 The game is a paid title, so this port ships the engine only. Copy the `www` folder from your own installation into the `fearandhunger` folder, alongside the engine. `Game.exe`, the `.dll` files, `locales/`, `swiftshader/`, `credits.html` and the loose `package.json` are the Windows NW.js runtime and are not needed; this port brings its own.
 
 The engine is NW.js 0.117.0 for aarch64, which is Chromium 154 with Node. Fear & Hunger is RPG Maker MV 1.6.0, and MV games are web pages, so there is no native engine to swap in the way mkxp-z replaces RGSS. Official NW.js aarch64 builds only go back to 0.111.1, so there is no build close to the 0.33 the game shipped with. The game runs on a Chromium a hundred versions newer than the one it was written against, and the port exists to paper over the places where that shows.
@@ -77,10 +88,44 @@ Face buttons follow the device's own labels, so on a Nintendo style layout Confi
 
 **A lost GPU context reloads the game.** PIXI 4.5.4 does not recover from one: the game keeps running and keeps drawing, but what reaches the screen is corrupt, usually a vertically mirrored frame. On a handheld the context is lost when the device sleeps. The port reloads at the title screen instead, with saves intact. `FNH_NO_GL_RELOAD=1` leaves it alone.
 
-`FNH_MAX_STEPS`, `FNH_CULL` and `FNH_REFRESH_MS` are the frame rate knobs, described
-under Performance below. `FNH_CACHE_MP` sets the image cache ceiling in megapixels, 8 by default against the game's 10. `FNH_SKIP_VIDEO=1` skips the intro, which is 33 seconds of 816x624 VP9 decoded in software. `FNH_VERBOSE=1` writes frame rate, heap and scene names to `fearandhunger/log-game.txt`.
+## Settings
 
-## Known issues, and what has not been tested
+Everything is an environment variable, so a tester can change one thing without editing a
+file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
+
+| Variable | Default | What it does |
+|--|--|--|
+| `FNH_FILTERS` | `0` | Fullscreen shader passes. The game asks FilterController for zoomblur, rgbsplit, godray and adjustment on about a third of its maps; one map stacks two zoomblurs and an rgbsplit, which cost 14 fps against 21 without them. `99` restores the game's own look. |
+| `FNH_FOG` | `99` | How many of a map's fog layers to draw. 46 maps carry three fullscreen additive layers each. Untested as a frame rate knob - it was not the cause of the slow map that filters turned out to be. |
+| `FNH_MAX_STEPS` | `2` | Logic steps the fixed timestep may run per rendered frame. `1` is smoother and runs the game at a third speed; `0` restores the plugin's own uncapped loop. |
+| `FNH_CULL` | `1` | `1` skips the logic of off-screen events, which nothing can see. `2` also skips their sprites, which is faster and makes a character you walk towards appear late and at arm's length. `0` updates everything. |
+| `FNH_REFRESH_MS` | `50` | Minimum gap between page condition refreshes. |
+| `FNH_RENDER_SCALE` | `0.6` | Fraction of 816x624 to render into. `0` matches the panel, `1` renders natively. See Known issues. |
+| `FNH_CACHE_MP` | `12` | Image cache ceiling in megapixels, against the game's own 10. |
+| `FNH_AUDIO_HZ` | `22050` | Audio context rate. `0` leaves it at the device default. |
+| `FNH_TEXTURE_GC` | `600` | Frames PIXI keeps an unused texture. `rpg_core.js` sets 1. |
+| `FNH_SKIP_VIDEO` | off | Skips the intro: 33 seconds of 816x624 VP9 decoded in software. |
+| `FNH_VERBOSE` | off | Frame rate, heap and scene names into `fearandhunger/log-game.txt`. |
+| `FNH_FRAMEPROF` | off | Splits each frame into map logic, sprites and drawing, and names what loaded during any frame over 100 ms. |
+
+## Known issues
+
+**The render scale clips window contents.** At anything below 1 the name entry window loses
+about a quarter of its canvas, the avatar with it. `WindowLayer.renderWebGL` computes its
+scissor rectangle from `rt.sourceFrame` in logical units while the scissor itself works in
+real framebuffer pixels, so the box lands in the wrong place once the renderer is scaled.
+`FNH_RENDER_SCALE=1` avoids it at a cost in frame rate. Fixing it properly means replacing
+that method.
+
+**Fullscreen filters are off by default.** That is a visible change: the game uses zoomblur
+for its dizzy, dragged-under moments and the port drops it. `FNH_FILTERS=99` puts it back.
+
+**`text_knight` never loads, on any platform.** The game ships it as `text_knight.psd`
+rather than a PNG, so the knight's description is missing on Windows too. Nothing to fix here.
+
+**`physical_attack_animation.js` throws a SyntaxError at startup, on any platform.** It asks
+`PluginManager` for its parameters under a name it is not registered with, gets an empty
+object, and evals `"[object Object]"`. The plugin has therefore never worked.
 
 ## Performance on a 1 GB device
 
@@ -101,8 +146,8 @@ each of those 46 carries **three** fullscreen layers of it at blend 1, which is 
 138 was an earlier count of `<fog effect>` tags rather than of maps. The heaviest maps are
 among the 46 (Map110 with 572 events, Map080 with 535, Map160 with 506), so the worst places
 in this game pay for the events and for the fill rate at once. The port renders at 60%
-of 816x624 by default and lets the panel scale it back up. `FNH_RENDER_SCALE=0` restores
-a pixel-exact frame for anyone on stronger hardware.
+of 816x624 by default and lets the panel scale it back up; `FNH_RENDER_SCALE=1` renders
+natively for anyone on stronger hardware, and avoids the clipping noted above.
 
 Two things that look like optimisations and are not. Shrinking the image cache to save
 memory costs more than it saves: every eviction becomes a fresh read from a slow card, so

@@ -82,8 +82,11 @@
         // creates two zoomblurs and an rgbsplit over the whole screen, and a zoom blur
         // samples the frame dozens of times per pixel. None of it shows up in a CPU
         // profile - the timers here measure the call that queues the work, not the GPU
-        // doing it - which is why 35 ms of a 37 ms frame had no owner. 0 turns them off.
-        filters:     parseInt(process.env.FNH_FILTERS || '99', 10)
+        // doing it - which is why 35 ms of a 37 ms frame had no owner. Off by default:
+        // on the map where a witch drags you under, two zoomblurs and an rgbsplit cost
+        // 14 fps against 21 without them, and that map is one of 37 using zoomblur.
+        // FNH_FILTERS=99 puts the game's own look back.
+        filters:     parseInt(process.env.FNH_FILTERS || '0', 10)
     };
 
     // Counters the frame profiler reads. They live out here because the frame rate
