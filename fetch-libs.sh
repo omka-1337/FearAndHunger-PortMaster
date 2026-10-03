@@ -135,4 +135,26 @@ print('Expected from the firmware: ' + ', '.join(outside))
 PY
 
 cp fearandhunger/libs.aarch64-README.txt "$DEST/README.txt" 2>/dev/null || true
-echo "Done: $(du -sh "$DEST" | cut -f1) in $DEST"
+
+# Several of these are LGPL and one is MPL, so where each binary came from has to
+# travel with it. The urls list is the authoritative answer: it names the Debian
+# source package and version of every file in the folder.
+{
+  echo "Libraries NW.js needs that handheld firmware does not ship."
+  echo
+  echo "Stock Debian bookworm arm64 binaries, unmodified. Bookworm carries glibc 2.36"
+  echo "and these devices report 2.40; glibc is backward compatible, so binaries built"
+  echo "against the older one run against the newer and not the other way round."
+  echo
+  echo "Rebuild this folder with ./fetch-libs.sh. Source packages, in Debian's pool:"
+  echo
+  sed 's|^https://deb.debian.org/debian/|  |' "$TMP/urls.txt" | sort
+  echo
+  echo "Contents:"
+  echo
+  for f in $(ls "$DEST" | grep -v '\.txt$' | sort); do
+    printf '  %-34s %7s KB\n' "$f" "$(( $(stat -c%s "$DEST/$f") / 1024 ))"
+  done
+} > "$DEST/MANIFEST.txt"
+
+echo "Done: $(du -sh "$DEST" | cut -f1) in $DEST, manifest written"
