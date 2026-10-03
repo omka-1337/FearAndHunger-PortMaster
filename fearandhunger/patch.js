@@ -251,6 +251,127 @@
             log('profiler on');
         }
 
+        // FNH_FRAMEPROF=1: where a frame actually goes. Measuring only, nothing is
+        // changed in how anything renders.
+        //
+        // The dungeons carry 328 to 464 events each against 7 on the first outdoor map,
+        // and MV updates every event on the map every frame whether or not it is on
+        // screen. So the question is whether the dungeons are slow because of map logic,
+        // because of the sprites that follow it, or because of drawing - and spikes on a
+        // single action are a different thing again, usually one frame's worth of
+        // loading. This separates the three and names what loaded during a long frame.
+        if (process.env.FNH_FRAMEPROF === '1') {
+            var acc = { map: 0, sprites: 0, render: 0 };
+            var loads = [];
+            var frames = 0, slow = 0;
+
+            function wrap(obj, name, slot) {
+                if (!obj || !obj[name]) return;
+                var orig = obj[name];
+                obj[name] = function () {
+                    var t0 = performance.now();
+                    var r = orig.apply(this, arguments);
+                    acc[slot] += performance.now() - t0;
+                    return r;
+                };
+            }
+            if (typeof Game_Map !== 'undefined') wrap(Game_Map.prototype, 'update', 'map');
+            if (typeof Spriteset_Map !== 'undefined') wrap(Spriteset_Map.prototype, 'update', 'sprites');
+            wrap(Graphics, 'render', 'render');
+
+            // One level down: how much of the map's time is the events themselves, how
+            // much of the sprite time is characters, and how many of those characters
+            // are nowhere near the screen. On a 90x70 map with 344 events the answer
+            // decides whether anything can be skipped.
+            // Everything here is measured once per frame. Wrapping Game_Event.update or
+            // Sprite_Character.update instead would mean 666 timer calls a frame on a map
+            // with 333 events, which costs more than the thing being measured - that
+            // mistake is why the frame rate fell with every profiled run.
+            acc.events = 0; acc.common = 0; acc.refresh = 0; acc.interp = 0; acc.light = 0;
+            var refreshes = 0, offscreenPct = 0;
+
+            if (typeof Game_Map !== 'undefined') {
+                wrap(Game_Map.prototype, 'updateEvents', 'events');
+                wrap(Game_Map.prototype, 'updateInterpreter', 'interp');
+                var _refresh = Game_Map.prototype.refresh;
+                Game_Map.prototype.refresh = function () {
+                    refreshes++;
+                    var t0 = performance.now();
+                    var r = _refresh.apply(this, arguments);
+                    acc.refresh += performance.now() - t0;
+                    return r;
+                };
+            }
+            if (typeof Lightmask !== 'undefined' && Lightmask.prototype.update) {
+                wrap(Lightmask.prototype, 'update', 'light');
+            }
+
+            if (typeof ImageManager !== 'undefined' && ImageManager.loadNormalBitmap) {
+                var _loadBmp = ImageManager.loadNormalBitmap;
+                ImageManager.loadNormalBitmap = function (path, hue) {
+                    var cached = this._imageCache && this._imageCache.get && this._imageCache.get(path + ':' + hue);
+                    if (!cached && loads.length < 12) loads.push('img ' + path.split('/').slice(-2).join('/'));
+                    return _loadBmp.apply(this, arguments);
+                };
+            }
+            if (typeof AudioManager !== 'undefined' && AudioManager.playSe) {
+                var _playSe = AudioManager.playSe;
+                AudioManager.playSe = function (se) {
+                    if (se && se.name && loads.length < 12) loads.push('se ' + se.name);
+                    return _playSe.apply(this, arguments);
+                };
+            }
+
+            var last = performance.now(), window10 = last;
+            (function frameTick() {
+                var now = performance.now();
+                var dt = now - last;
+                last = now;
+                frames++;
+
+                if (dt > 100) {
+                    slow++;
+                    log('SLOW FRAME ' + dt.toFixed(0) + 'ms  map=' + acc.map.toFixed(0) +
+                        ' sprites=' + acc.sprites.toFixed(0) + ' render=' + acc.render.toFixed(0) +
+                        '  other=' + Math.max(0, dt - acc.map - acc.sprites - acc.render).toFixed(0) +
+                        (loads.length ? '  loaded: ' + loads.join(', ') : '') +
+                        '  map#' + (($gameMap && $gameMap.mapId && $gameMap.mapId()) || 0) +
+                        ' events=' + (($gameMap && $gameMap.events && $gameMap.events().length) || 0));
+                }
+
+                if (now - window10 >= 10000) {
+                    var secs = (now - window10) / 1000;
+                    log('frame budget over ' + secs.toFixed(0) + 's: ' + (frames / secs).toFixed(1) + ' fps' +
+                        '  map=' + (acc.map / frames).toFixed(1) + 'ms' +
+                        ' (events=' + (acc.events / frames).toFixed(1) + 'ms)' +
+                        ' sprites=' + (acc.sprites / frames).toFixed(1) + 'ms' +
+                        ' (' + offscreenPct + '% of events offscreen)' +
+                        ' render=' + (acc.render / frames).toFixed(1) + 'ms' +
+                        '  [refresh=' + (acc.refresh / frames).toFixed(1) + 'ms x' + refreshes +
+                        ' interp=' + (acc.interp / frames).toFixed(1) + 'ms' +
+                        ' light=' + (acc.light / frames).toFixed(1) + 'ms]' +
+                        '  slowframes=' + slow +
+                        '  map#' + (($gameMap && $gameMap.mapId && $gameMap.mapId()) || 0) +
+                        ' events=' + (($gameMap && $gameMap.events && $gameMap.events().length) || 0));
+                    // Sampled once per window rather than per sprite per frame.
+                    try {
+                        var evs = ($gameMap && $gameMap.events && $gameMap.events()) || [];
+                        var off = 0;
+                        for (var k = 0; k < evs.length; k++) {
+                            if (evs[k].isNearTheScreen && !evs[k].isNearTheScreen()) off++;
+                        }
+                        offscreenPct = Math.round(off / Math.max(evs.length, 1) * 100);
+                    } catch (e) { offscreenPct = -1; }
+                    acc.map = acc.sprites = acc.render = acc.events = 0;
+                    acc.refresh = acc.interp = acc.light = 0; refreshes = 0;
+                    frames = 0; slow = 0; window10 = now;
+                }
+                loads.length = 0;
+                requestAnimationFrame(frameTick);
+            })();
+            log('frame profiler on');
+        }
+
         if (CFG.skipVideo) {
             Graphics.playVideo = function () { log('video skipped'); };
         }

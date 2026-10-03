@@ -106,6 +106,35 @@ the default here is higher than the game's own, not lower. And decrypting the as
 worth doing for the CPU it saves, changed the read volume barely at all - the reads were
 the kernel paging the engine, not the game loading art.
 
+### Where a frame goes
+
+`FNH_FRAMEPROF=1` splits each frame into map logic, sprites and drawing, and names what
+loaded during any frame over 100 ms. Measured on map 74 (156 events) at native resolution,
+with zram up:
+
+| | per frame |
+|--|--|
+| `Game_Map.updateEvents` | 23.0 ms |
+| rendering | 18.6 ms |
+| `Spriteset_Map.update` | 15.1 ms |
+| `Game_Map.refresh` | 4.6 ms, and it runs 320 times in 10 seconds |
+| interpreter | 1.5 ms |
+
+About 63 ms a frame, so 16 fps, split roughly evenly between event logic, drawing and
+sprites. There is no single culprit to remove. The dungeons are worse because they carry
+330 to 460 events against 7 on the first outdoor map, and MV updates every event on the
+map every frame whether or not it is anywhere near the screen - around 80% of them are not.
+
+`Game_Map.refresh` running every frame is worth noting: it re-evaluates the page conditions
+of every event on the map, and it is triggered by any switch or variable change. This game
+has hunger and sanity ticking constantly.
+
+A warning about measuring this on hardware this slow: an earlier version of the profiler
+wrapped `Game_Event.update` and `Sprite_Character.update`, which on a 333 event map is 666
+timer calls a frame. It reported 144 ms of map logic and 8 ms of drawing, and both figures
+were artefacts - the real split is above, and drawing is a third of the frame rather than
+noise. Measure once per frame, not once per object.
+
 Still unexplored: windows and menus stall for seconds, which points at MV's habit of
 re-uploading a window's whole contents bitmap to the GPU, made worse by `rpg_core.js`
 setting PIXI's texture garbage collector to drop anything unused for a single frame. The
