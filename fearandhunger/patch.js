@@ -24,12 +24,14 @@
     var GAME_HEIGHT = 624;
 
     var CFG = {
-        // Fraction of 816x624 to render into. Measured on a Mali-G31 at 640x480:
-        // matching the panel exactly (0.77 here) ran the dungeons at 13-18 fps, while
-        // 0.55 held 60, which is the timestep cliff in section 5a as much as it is fill
-        // rate. 46 of the 169 maps carry fog, three fullscreen additive layers each, and
-        // the heaviest maps are among them. 0 means match the panel: sharpest, and slowest.
-        renderScale: parseFloat(process.env.FNH_RENDER_SCALE || '0.6'),
+        // Fraction of 816x624 to render into. Native by default. Scaling down used to
+        // be the biggest frame rate knob here, but that was while the game's fullscreen
+        // shader filters were still running; with those off it buys nothing measurable
+        // on a Mali-G31 - 17-24 fps in a 328 event dungeon either way - and it costs a
+        // quarter of the name entry window, which comes out clipped at any scale below
+        // 1 for reasons three investigations have failed to pin down. Sharp and whole
+        // beats fast and broken when the two are the same speed.
+        renderScale: VANILLA ? 1 : parseFloat(process.env.FNH_RENDER_SCALE || '1'),
         // Decoded audio costs duration x rate x channels x 4 bytes. 0 leaves it alone.
         audioHz:     parseInt(process.env.FNH_AUDIO_HZ || '22050', 10),
         // ImageCache limit in megapixels. The game ships 10 (40 MB of RGBA). Cutting
@@ -486,6 +488,39 @@
             })();
         }
     });
+
+    // FNH_WINTEST=1: a window with a known pattern, kept on screen across scene
+    // changes. It goes through Scene_Base.addWindow so it lands in the scene's
+    // _windowLayer, which is the thing that scissors window contents - adding it
+    // straight to the scene skips that code and tests nothing.
+    if (process.env.FNH_WINTEST === '1') {
+        document.addEventListener('DOMContentLoaded', function () {
+            var win = null, said = false;
+            setInterval(function () {
+                var scene = SceneManager._scene;
+                if (!scene || !scene._windowLayer || !scene.addWindow) return;
+                if (win && win.parent === scene._windowLayer) return;
+                try {
+                    win = new Window_Base(40, 40, 544, 320);
+                    var c = win.contents;
+                    c.fillRect(0, 0, c.width, c.height, '#004080');
+                    c.fillRect(0, 0, c.width, 8, '#ff0000');
+                    c.fillRect(0, c.height - 8, c.width, 8, '#00ff00');
+                    c.fillRect(0, 0, 8, c.height, '#ffff00');
+                    c.fillRect(c.width - 8, 0, 8, c.height, '#ff00ff');
+                    c.fillRect(Math.floor(c.width / 2) - 4, 0, 8, c.height, '#ffffff');
+                    win.drawText('TOP LEFT', 16, 0, 300, 36);
+                    win.drawText('BOTTOM RIGHT', c.width - 260, c.height - 40, 250, 36, 'right');
+                    scene.addWindow(win);
+                    if (!said) {
+                        log('wintest: window in the window layer, contents ' +
+                            c.width + 'x' + c.height);
+                        said = true;
+                    }
+                } catch (e) { log('wintest failed: ' + e); }
+            }, 1500);
+        });
+    }
 
     window.addEventListener('load', function () {
         // Swallow FilterController's commands rather than unpicking its state: the

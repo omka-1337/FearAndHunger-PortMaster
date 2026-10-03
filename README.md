@@ -100,7 +100,7 @@ file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
 | `FNH_MAX_STEPS` | `2` | Logic steps the fixed timestep may run per rendered frame. `1` is smoother and runs the game at a third speed; `0` restores the plugin's own uncapped loop. |
 | `FNH_CULL` | `1` | `1` skips the logic of off-screen events, which nothing can see. `2` also skips their sprites, which is faster and makes a character you walk towards appear late and at arm's length. `0` updates everything. |
 | `FNH_REFRESH_MS` | `50` | Minimum gap between page condition refreshes. |
-| `FNH_RENDER_SCALE` | `0.6` | Fraction of 816x624 to render into. `0` matches the panel, `1` renders natively. See Known issues. |
+| `FNH_RENDER_SCALE` | `1` | Fraction of 816x624 to render into. `0` matches the panel. Below 1 clips part of the name entry window, and with the filters off it buys nothing measurable. |
 | `FNH_CACHE_MP` | `12` | Image cache ceiling in megapixels, against the game's own 10. |
 | `FNH_AUDIO_HZ` | `22050` | Audio context rate. `0` leaves it at the device default. |
 | `FNH_TEXTURE_GC` | `600` | Frames PIXI keeps an unused texture. `rpg_core.js` sets 1. |
@@ -110,12 +110,14 @@ file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
 
 ## Known issues
 
-**The render scale clips window contents.** At anything below 1 the name entry window loses
-about a quarter of its canvas, the avatar with it. `WindowLayer.renderWebGL` computes its
-scissor rectangle from `rt.sourceFrame` in logical units while the scissor itself works in
-real framebuffer pixels, so the box lands in the wrong place once the renderer is scaled.
-`FNH_RENDER_SCALE=1` avoids it at a cost in frame rate. Fixing it properly means replacing
-that method.
+**The render scale clips window contents, cause unknown.** At anything below 1 the name
+entry window loses about a quarter of its canvas, the avatar with it. Three explanations were
+tested on hardware and all three were wrong: it is not `WindowLayer`'s scissor (a window full
+of coloured edge stripes renders perfectly through the window layer at 0.6), it is not
+`DK_Name_Input` (which does not touch that scene), and rebuilding `Bitmap.snap` at the
+renderer's resolution throws `RangeError: offset is out of bounds` out of PIXI's extract,
+which cannot read a render texture whose resolution is not 1. The default is now 1, which
+sidesteps it entirely and, with the fullscreen filters off, costs nothing measurable.
 
 **Fullscreen filters are off by default.** That is a visible change: the game uses zoomblur
 for its dizzy, dragged-under moments and the port drops it. `FNH_FILTERS=99` puts it back.
@@ -145,9 +147,10 @@ The second limit is fill rate. Counted from the map data: 46 of the 169 maps car
 each of those 46 carries **three** fullscreen layers of it at blend 1, which is additive.
 138 was an earlier count of `<fog effect>` tags rather than of maps. The heaviest maps are
 among the 46 (Map110 with 572 events, Map080 with 535, Map160 with 506), so the worst places
-in this game pay for the events and for the fill rate at once. The port renders at 60%
-of 816x624 by default and lets the panel scale it back up; `FNH_RENDER_SCALE=1` renders
-natively for anyone on stronger hardware, and avoids the clipping noted above.
+in this game pay for the events and for the fill rate at once. The port renders natively. Scaling down was
+worth a great deal while the game's fullscreen shader filters were still running; once those
+are off it buys nothing on this hardware - a 328 event dungeon measures 17-24 fps either way -
+so the sharper frame wins.
 
 Two things that look like optimisations and are not. Shrinking the image cache to save
 memory costs more than it saves: every eviction becomes a fresh read from a slow card, so
