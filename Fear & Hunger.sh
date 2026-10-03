@@ -77,6 +77,14 @@ fi
 # own code - and then read it back off the SD card at the next instruction. On an
 # RG40XX V that cost 1.5 GB of reads in ninety seconds and took the dungeons down
 # to half a frame per second. With 1 GB of zstd zram the same scene ran at 13-18.
+# The zram module is not loaded on a fresh boot, and without it
+# /sys/class/zram-control does not exist and the block below is skipped in
+# silence - which is how a device ends up back at half a frame per second with
+# nobody noticing it had ever been faster.
+if [ "$(awk 'NR>1 {found=1} END {print found+0}' /proc/swaps)" = "0" ] && [ ! -e /sys/class/zram-control/hot_add ]; then
+  modprobe zram 2>/dev/null
+fi
+
 if [ "$(awk 'NR>1 {found=1} END {print found+0}' /proc/swaps)" = "0" ] && [ -e /sys/class/zram-control/hot_add ]; then
   ZRAM_ID=$(cat /sys/class/zram-control/hot_add 2>/dev/null)
   if [ -n "$ZRAM_ID" ] && [ -b "/dev/zram${ZRAM_ID}" ]; then
@@ -88,6 +96,12 @@ if [ "$(awk 'NR>1 {found=1} END {print found+0}' /proc/swaps)" = "0" ] && [ -e /
       FNH_ZRAM="$ZRAM_ID"
     fi
   fi
+fi
+
+if [ "$(awk 'NR>1 {found=1} END {print found+0}' /proc/swaps)" = "0" ]; then
+  echo "WARNING: no swap could be set up. Expect the dungeons to crawl: with"
+  echo "nowhere to compress memory this device pages the engine's own code off"
+  echo "the SD card while you play."
 fi
 
 # Chromium's profile cannot live on the SD card. It takes a process-wide lock by
