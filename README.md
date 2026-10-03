@@ -1,6 +1,7 @@
-## Notes
+# Fear & Hunger for PortMaster
 
-Thanks to [Miro Haverinen](https://store.steampowered.com/app/1002300/Fear__Hunger/) for creating Fear & Hunger, which is not interested in whether you are having a good time.
+Thanks to [Miro Haverinen](https://store.steampowered.com/app/1002300/Fear__Hunger/) for
+creating Fear & Hunger, which is not interested in whether you are having a good time.
 
 **Playable.** Boots, plays, fights, saves and loads on an RG40XX V at roughly 17-24 fps in a
 dungeon. Not smooth, but a game you can sit down with.
@@ -14,39 +15,98 @@ with Node, because RPG Maker MV games are web pages and there is no native engin
 the way mkxp-z replaces RGSS. Nothing in the port edits the files you copy in - every fix is
 injected ahead of the game's own scripts through `inject_js_start`.
 
-## Supplying the game files
+## Contents
+
+- [Installing](#installing)
+  - [1. Check your firmware](#1-check-your-firmware)
+  - [2. Install the port](#2-install-the-port)
+  - [3. Prepare the game's audio](#3-prepare-the-games-audio)
+  - [4. Copy the game across](#4-copy-the-game-across)
+  - [5. Play](#5-play)
+- [Controls](#controls)
+- [What the port changes, and why](#what-the-port-changes-and-why)
+- [Settings](#settings)
+- [Troubleshooting](#troubleshooting)
+- [Known issues](#known-issues)
+- [Performance](#performance)
+- [Building the runtime](#building-the-runtime)
+- [Licence](#licence)
+
+## Installing
+
+You need: the game on Steam, a PC with `python3` and `ffmpeg`, and a handheld running
+firmware with DRM/KMS graphics. Budget half an hour, most of it copying files.
+
+### 1. Check your firmware
+
+ROCKNIX works. KNULLI on Allwinner hardware does not, and no setting will change that - it
+drives the panel through the framebuffer and Chromium cannot draw there. If you are unsure,
+install the port anyway and run it once: it checks and tells you in plain words.
+
+### 2. Install the port
+
+Through PortMaster, or by hand: unzip `fearandhunger.zip` into your ports folder, which is
+`/roms/ports` on ROCKNIX. You should end up with:
 
 ```
-fearandhunger/
-├── www/              <- from your installation
-│   ├── audio/
-│   ├── data/
-│   ├── fonts/
-│   ├── img/
-│   ├── js/
-│   ├── movies/
+ports/
+├── Fear & Hunger.sh
+└── fearandhunger/
+    ├── nwjs/             the engine
+    ├── libs.aarch64/     libraries the firmware lacks
+    ├── package.json
+    ├── patch.js
+    └── tools/
+```
+
+The game is not in there. That is the next two steps.
+
+### 3. Prepare the game's audio
+
+On your PC, find your installation:
+
+| | |
+|--|--|
+| Windows | `C:\Program Files (x86)\Steam\steamapps\common\Fear & Hunger\www` |
+| Linux | `~/.local/share/Steam/steamapps/common/Fear & Hunger/www` |
+
+Copy that `www` folder somewhere first if you would rather not touch your installed copy,
+then run the converter over it:
+
+```
+python3 tools/optimize_audio.py /path/to/www/audio --inplace
+```
+
+It rewrites 33 music and ambience tracks to mono, which takes a couple of minutes and shrinks
+them from 181 MB to about 21 MB. This matters more than it sounds: MV holds whole tracks in
+memory uncompressed, and the longest one in this game is 109 MB of RAM by itself. Skip the
+step and the game still runs, with far less room to run in. Sound effects are left alone.
+
+### 4. Copy the game across
+
+Copy the whole `www` folder into the port folder, so it sits next to `patch.js`:
+
+```
+ports/fearandhunger/
+├── www/              <- yours
+│   ├── audio/  data/  fonts/  img/  js/  movies/
 │   └── index.html
-├── nwjs/             <- the engine, from ./fetch-runtime.sh
-├── package.json
+├── nwjs/
 ├── patch.js
-└── tools/
+└── ...
 ```
 
-Saves are written to `www/save`, next to the game's own files, exactly as on the desktop. A save made on a PC will load here and the other way round.
+About 700 MB after the audio step. `Game.exe`, the `.dll` files, `locales/`, `swiftshader/`
+and the loose `package.json` next to them are the Windows engine - leave all of that behind,
+this port brings its own.
 
-## The audio step, which is not optional
+Saves land in `www/save`, exactly as on the desktop, so a save made on a PC loads here and
+the other way round.
 
-Run this once on a PC, before copying `www` across. It needs `python3` and `ffmpeg`.
+### 5. Play
 
-```
-python3 fearandhunger/tools/optimize_audio.py /path/to/www/audio --inplace
-```
-
-MV keeps whole tracks in memory as uncompressed float32 and holds the music, the ambience and
-the event jingle at once; this game's longest ambience is 109 MB of RAM by itself. Folding the
-tracks to mono, together with the 22 kHz audio context the port sets, takes the worst case
-from 292 MB of PCM to 67 MB. Skip this and the game still runs, but it has far less room to
-run in. Sound effects are left alone - 411 short files are not what fills the memory.
+Start it from the Ports menu. The first launch sets up a gigabyte of compressed swap, which
+is what keeps the game out of trouble on a 1 GB device, and gives it back when you quit.
 
 ## Controls
 
@@ -94,6 +154,37 @@ file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
 | `FNH_SKIP_VIDEO` | off | Skips the intro: 33 seconds of 816x624 VP9 decoded in software. |
 | `FNH_VERBOSE` | off | Frame rate, heap and scene names into `fearandhunger/log-game.txt`. |
 | `FNH_FRAMEPROF` | off | Splits each frame into map logic, sprites and drawing, and names what loaded during any frame over 100 ms. |
+
+## Troubleshooting
+
+The launcher checks what it can before starting anything, and everything it prints also goes
+to `fearandhunger/log.txt`. The game's own side writes `fearandhunger/log-game.txt`.
+
+**"Game files not found."** The `www` folder is not where the port looks, or only part of it
+arrived. It wants `fearandhunger/www/index.html` and `fearandhunger/www/js/rpg_core.js` to
+exist. A common miss is copying the folder *containing* `www` instead of `www` itself.
+
+**"This firmware has no DRM/KMS graphics."** Step 1. Nothing in the port can work around it.
+
+**"This device is missing libraries the engine needs," with a list.** Your firmware is short
+of something Chromium wants that is not already in `libs.aarch64/`. Drop aarch64 builds of the
+named libraries in there - and please report the list, because it belongs in the port rather
+than in your hands.
+
+**"WARNING: no swap could be set up."** The port could not create its compressed swap, and on
+a 1 GB device the game will crawl. Usually means the `zram` module is missing from the kernel.
+
+**The screen stays black.** Try a different GL backend before concluding anything:
+
+```
+cd /roms/ports
+FNH_GL_ARGS=--use-angle=gl ./"Fear & Hunger.sh"
+FNH_GL_ARGS=" " ./"Fear & Hunger.sh"
+```
+
+**It runs, but badly.** `FNH_VERBOSE=1` writes the frame rate and the current scene to
+`log-game.txt`; `FNH_FRAMEPROF=1` adds a breakdown of where each frame went. Both are safe to
+leave on. [PERFORMANCE.md](PERFORMANCE.md) explains how to read them.
 
 ## Known issues
 
