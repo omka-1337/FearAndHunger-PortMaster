@@ -1,4 +1,4 @@
-# Game files — the game is paid, users supply their own copy.
+# Game files. The game is paid, users supply their own copy.
 fearandhunger/www/
 
 # The NW.js runtime, fetched by ./fetch-runtime.sh. libnw.so alone is 283 MB,

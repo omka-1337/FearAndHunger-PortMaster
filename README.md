@@ -4,7 +4,7 @@ Thanks to [Miro Haverinen](https://store.steampowered.com/app/1002300/Fear__Hung
 
 The game is a paid title, so this port ships the engine only. Copy the `www` folder from your own installation into the `fearandhunger` folder, alongside the engine. `Game.exe`, the `.dll` files, `locales/`, `swiftshader/`, `credits.html` and the loose `package.json` are the Windows NW.js runtime and are not needed; this port brings its own.
 
-The engine is NW.js 0.117.0 for aarch64, which is Chromium 154 with Node. Fear & Hunger is RPG Maker MV 1.6.0, and MV games are web pages, so there is no native engine to swap in the way mkxp-z replaces RGSS. Official NW.js aarch64 builds only go back to 0.111.1, so there is no build close to the 0.33 the game shipped with — the game runs on a Chromium a hundred versions newer than the one it was written against, and the port exists to paper over the places where that shows.
+The engine is NW.js 0.117.0 for aarch64, which is Chromium 154 with Node. Fear & Hunger is RPG Maker MV 1.6.0, and MV games are web pages, so there is no native engine to swap in the way mkxp-z replaces RGSS. Official NW.js aarch64 builds only go back to 0.111.1, so there is no build close to the 0.33 the game shipped with. The game runs on a Chromium a hundred versions newer than the one it was written against, and the port exists to paper over the places where that shows.
 
 Nothing in the port edits the files you copy in. Every fix is injected before the game's own scripts through `inject_js_start` in `package.json`, which is this port's equivalent of a preloaded compatibility script.
 
@@ -38,7 +38,7 @@ python3 fearandhunger/tools/optimize_audio.py /path/to/www/audio --inplace
 
 RPG Maker MV decodes every track to an uncompressed float32 buffer and keeps the music, the ambience and the event jingle resident at the same time. How well the ogg is compressed does not matter: what costs memory is duration x sample rate x channels x 4 bytes. This game's longest ambience track runs 299 seconds in 48 kHz stereo, which is 109 MB of RAM on its own.
 
-Measured on a desktop, forcing the three longest tracks to decode together — which is a state the game can genuinely reach, since BGM, BGS and ME all play at once:
+Measured on a desktop, forcing the three longest tracks to decode together, which is a state the game can genuinely reach, since BGM, BGS and ME all play at once:
 
 | | decoded PCM | peak process memory |
 |--|--|--|
@@ -46,7 +46,7 @@ Measured on a desktop, forcing the three longest tracks to decode together — w
 | Tracks folded to mono | 146 MB | 526 MB |
 | Mono, plus the port's 22 kHz audio context | 67 MB | 444 MB |
 
-The two halves only work together. Chromium resamples while decoding to whatever rate the audio context runs at, so a lower sample rate in the file buys nothing by itself — the port's `patch.js` sets the context to 22050 Hz, and the converter supplies the mono. On disk the tracks go from 181 MB to about 21 MB, but the disk was never the problem.
+The two halves only work together. Chromium resamples while decoding to whatever rate the audio context runs at, so a lower sample rate in the file buys nothing by itself. The port's `patch.js` sets the context to 22050 Hz, and the converter supplies the mono. On disk the tracks go from 181 MB to about 21 MB, but the disk was never the problem.
 
 Sound effects are left alone. There are 411 of them, they are short, and they are not what fills the memory.
 
@@ -63,7 +63,7 @@ Sound effects are left alone. There are 411 of them, they are short, and they ar
 | Start | Menu |
 | Start + Select | Quit |
 
-Face buttons follow the device's own labels, so on a Nintendo style layout Confirm sits on B. Say if yours differs. The game is keyboard only — no gamepad plugin is enabled and `YEP_KeyboardConfig` keeps MV's stock bindings — so everything goes through gptokeyb2 and `fearandhunger.gptk`.
+Face buttons follow the device's own labels, so on a Nintendo style layout Confirm sits on B. Say if yours differs. The game is keyboard only, no gamepad plugin is enabled and `YEP_KeyboardConfig` keeps MV's stock bindings, so everything goes through gptokeyb2 and `fearandhunger.gptk`.
 
 ## What the port changes, and why
 
@@ -73,11 +73,12 @@ Face buttons follow the device's own labels, so on a Nintendo style layout Confi
 
 **The audio context runs at 22050 Hz** (`FNH_AUDIO_HZ=0` to disable), for the reasons above.
 
-**The frame is rendered at the size of the panel.** The game is 816x624 and the screen is smaller, so MV was already shrinking the frame on its way out; rendering straight into a buffer the size of the panel removes that waste — on 640x480 it is 40% fewer pixels for a picture that is, pixel for pixel, the one you were already seeing. The scale is worked out from the screen at startup; `FNH_RENDER_SCALE=1` renders natively, or set it to a number to force one.
+**The frame is rendered at the size of the panel.** The game is 816x624 and the screen is smaller, so MV was already shrinking the frame on its way out; rendering straight into a buffer the size of the panel removes that waste: on 640x480 it is 40% fewer pixels for a picture that is, pixel for pixel, the one you were already seeing. The scale is worked out from the screen at startup; `FNH_RENDER_SCALE=1` renders natively, or set it to a number to force one.
 
 **A lost GPU context reloads the game.** PIXI 4.5.4 does not recover from one: the game keeps running and keeps drawing, but what reaches the screen is corrupt, usually a vertically mirrored frame. On a handheld the context is lost when the device sleeps. The port reloads at the title screen instead, with saves intact. `FNH_NO_GL_RELOAD=1` leaves it alone.
 
-`FNH_CACHE_MP` sets the image cache ceiling in megapixels, 8 by default against the game's 10. `FNH_SKIP_VIDEO=1` skips the intro, which is 33 seconds of 816x624 VP9 decoded in software. `FNH_VERBOSE=1` writes frame rate, heap and scene names to `fearandhunger/log-game.txt`.
+`FNH_MAX_STEPS`, `FNH_CULL` and `FNH_REFRESH_MS` are the frame rate knobs, described
+under Performance below. `FNH_CACHE_MP` sets the image cache ceiling in megapixels, 8 by default against the game's 10. `FNH_SKIP_VIDEO=1` skips the intro, which is 33 seconds of 816x624 VP9 decoded in software. `FNH_VERBOSE=1` writes frame rate, heap and scene names to `fearandhunger/log-game.txt`.
 
 ## Known issues, and what has not been tested
 
@@ -135,21 +136,69 @@ timer calls a frame. It reported 144 ms of map logic and 8 ms of drawing, and bo
 were artefacts - the real split is above, and drawing is a third of the frame rather than
 noise. Measure once per frame, not once per object.
 
-Still unexplored: windows and menus stall for seconds, which points at MV's habit of
-re-uploading a window's whole contents bitmap to the GPU, made worse by `rpg_core.js`
-setting PIXI's texture garbage collector to drop anything unused for a single frame. The
-port raises that to 600 frames and ships a profiler (`FNH_PROFILE=1`) that times text
-drawing, texture upload and window rebuilds separately. EmulationStation's 109 MB is also
+### The cliff, which is in the game rather than in the engine
+
+The game ships `TDDP_FluidTimestep.js`, enabled, and it replaces
+`SceneManager.updateMain` with a fixed timestep: a 1/60 accumulator drained in a
+`while` loop, clamped at 0.25 s. While a frame fits in 16.6 ms the loop runs one logic
+step and nothing is odd. The moment a frame costs more than that, the loop runs the map
+logic twice in one rendered frame, which makes the frame longer, which asks for a third
+step. It is a cliff with positive feedback, not a slope, and it explains two things that
+did not add up before:
+
+- why 0.77 of native ran the dungeons at 13 to 18 fps while 0.55 held 60. One side of
+  the cliff, then the other.
+- why windows and menus stall for seconds. A window rebuild costing hundreds of ms
+  clamps `frameTime` to 0.25, which is fifteen logic steps back to back, which is
+  another long frame.
+
+It also means the 63 ms breakdown above is per rendered frame and therefore includes
+however many logic steps ran in it, so a single step costs rather less than those
+figures suggest.
+
+`FNH_MAX_STEPS` caps the catch up and defaults to 1: under load the game runs slower
+instead of freezing, which on this hardware is the better of the two. `FNH_MAX_STEPS=0`
+hands the loop back to the plugin, and either way the profiler reports `steps=` per
+frame so the two can be compared on the same scene.
+
+### Spending the frame on what is visible
+
+MV updates every event on the map every frame. The dungeons here carry 572 events where
+102 is the most that fit on screen at once, and the second game reaches 922.
+`FNH_CULL=2`, the default, skips the update of an event that is outside the view, and
+`FNH_CULL=1` skips only its sprite, which cannot affect logic at all.
+
+Nothing observable is skipped, and the reason is in `rpg_objects.js`: `Game_Event`'s own
+`updateSelfMovement` is already gated on `isNearTheScreen`, so random, approach and
+custom route events do not walk off screen in the original game either. What does
+outlive the view is a forced move route (this game issues 16042 of them at other
+events), a running interpreter, an autorun or parallel page, a step already in progress
+and a requested animation or balloon. Each of those keeps its event updating, and
+`_stopCount` is credited by hand so an event returning to view is as ready to move as it
+would have been. The profiler prints which reason kept each event, so a whitelist that
+has stopped doing its job says so.
+
+`FNH_REFRESH_MS` is the third knob, 50 ms by default. `Game_Map.refresh` re-evaluates
+the page conditions of every event on the map and any switch or variable change asks for
+one, which with hunger and sanity ticking meant 320 refreshes in ten seconds. The work
+is deferred rather than dropped: `_needsRefresh` stays set and the next frame asks again.
+A map that has just loaded always refreshes at once.
+
+Windows and menus re-uploading their whole contents bitmap to the GPU is still real and
+still separate from the cliff, made worse by `rpg_core.js` setting PIXI's texture garbage
+collector to drop anything unused for a single frame. The port raises that to 600 frames
+and ships a profiler (`FNH_PROFILE=1`) that times text drawing, texture upload and window
+rebuilds separately. EmulationStation's 109 MB is also
 still there during play - on ROCKNIX it is started by `sway.sh`, not by the disabled
 `emustation.service`, so stopping it takes more than `systemctl stop`.
 
-**The firmware has to provide DRM/KMS graphics.** The engine is Chromium, and Chromium draws through X11, Wayland or DRM/KMS — never through a bare framebuffer. Some firmware still drives the panel the old way: KNULLI on the Allwinner H700 (RG40XX H and V) runs a 4.9 kernel with Arm's `mali_kbase` blob, which deliberately exposes no DRM API, so the device has `/dev/mali0`, `/dev/disp` and `/dev/fb0` and no `/dev/dri` at all. No compositor can run on that, so neither can this port, and neither can any other Electron or NW.js port. The launcher checks for it and says so plainly instead of letting Chromium abort with a stack trace.
+**The firmware has to provide DRM/KMS graphics.** The engine is Chromium, and Chromium draws through X11, Wayland or DRM/KMS, never through a bare framebuffer. Some firmware still drives the panel the old way: KNULLI on the Allwinner H700 (RG40XX H and V) runs a 4.9 kernel with Arm's `mali_kbase` blob, which deliberately exposes no DRM API, so the device has `/dev/mali0`, `/dev/disp` and `/dev/fb0` and no `/dev/dri` at all. No compositor can run on that, so neither can this port, and neither can any other Electron or NW.js port. The launcher checks for it and says so plainly instead of letting Chromium abort with a stack trace.
 
-The same hardware under a firmware with a mainline kernel and Panfrost — ROCKNIX, for one — does have `/dev/dri`, and that is where this port belongs.
+The same hardware under a firmware with a mainline kernel and Panfrost, ROCKNIX for one, does have `/dev/dri`, and that is where this port belongs.
 
 **The software renderer is not an option.** Running this game on PIXI's canvas renderer core dumps the engine outright, so the port needs working GLES and fails loudly rather than falling back. The software rasteriser is deliberately not shipped. If the screen is black, try `FNH_GL_ARGS=--use-angle=gl` and then `FNH_GL_ARGS=" "` before concluding anything.
 
-**NW.js is Chromium, and it wants a fuller system than most ports do.** On KNULLI (RG40XX-V, gladiator-ii) all sixteen libraries it asks for are absent outright: the X11 set, NSS, ATK, AT-SPI, CUPS, GBM and xkbcommon. The port therefore carries them and their whole dependency closure — 57 stock Debian bookworm arm64 binaries, unmodified, built into `fearandhunger/libs.aarch64/` by `./fetch-libs.sh` and listed with their source packages in that folder's `MANIFEST.txt`. Bookworm's glibc is 2.36 against the device's 2.40, and glibc is backward compatible, which is why it is not a current Debian.
+**NW.js is Chromium, and it wants a fuller system than most ports do.** On KNULLI (RG40XX-V, gladiator-ii) all sixteen libraries it asks for are absent outright: the X11 set, NSS, ATK, AT-SPI, CUPS, GBM and xkbcommon. The port therefore carries them and their whole dependency closure: 57 stock Debian bookworm arm64 binaries, unmodified, built into `fearandhunger/libs.aarch64/` by `./fetch-libs.sh` and listed with their source packages in that folder's `MANIFEST.txt`. Bookworm's glibc is 2.36 against the device's 2.40, and glibc is backward compatible, which is why it is not a current Debian.
 
 What the firmware still has to provide is `libglib-2.0`, `libgobject-2.0`, `libdbus-1` and `libexpat`. Those are deliberately not overridden, along with cairo, pango, udev and alsa: replacing a system's own glib is how you break it.
 
@@ -161,7 +210,7 @@ Everything above was verified on a desktop x86_64 build of the same NW.js versio
 
 ## Building the runtime
 
-The engine is not in this repository — `libnw.so` alone is 283 MB, past what GitHub accepts in a single file. Fetch and trim it with:
+The engine is not in this repository: `libnw.so` alone is 283 MB, past what GitHub accepts in a single file. Fetch and trim it with:
 
 ```
 ./fetch-runtime.sh

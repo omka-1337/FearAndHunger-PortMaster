@@ -104,12 +104,28 @@ if [ "$(awk 'NR>1 {found=1} END {print found+0}' /proc/swaps)" = "0" ]; then
   echo "the SD card while you play."
 fi
 
+# What the firmware is clocking this at. Read only, and in the log rather than in
+# a decision: a port that sets governors behind the firmware's back is a port that
+# gets asked why. If these say powersave while the frame rate is poor, that is
+# worth knowing before anything else is blamed.
+for POL in /sys/devices/system/cpu/cpufreq/policy*; do
+  [ -d "$POL" ] || continue
+  echo "cpu $(basename "$POL"): governor=$(cat "$POL/scaling_governor" 2>/dev/null) cur=$(cat "$POL/scaling_cur_freq" 2>/dev/null) max=$(cat "$POL/cpuinfo_max_freq" 2>/dev/null)"
+done
+for DEV in /sys/class/devfreq/*; do
+  [ -d "$DEV" ] || continue
+  echo "gpu $(basename "$DEV"): governor=$(cat "$DEV/governor" 2>/dev/null) cur=$(cat "$DEV/cur_freq" 2>/dev/null) max=$(cat "$DEV/max_freq" 2>/dev/null)"
+done
+
 # Chromium's profile cannot live on the SD card. It takes a process-wide lock by
 # creating SingletonLock as a symlink, and exFAT has no symlinks, so the attempt
 # fails with ENOSYS and Chromium aborts rather than risk a corrupt profile. None
 # of it is worth keeping between runs - saves go to www/save - so put it on tmpfs
 # and cap the caches, because that tmpfs is this device's one gigabyte of RAM.
-PROFILE="${FNH_PROFILE:-/tmp/fearandhunger-profile}"
+# FNH_PROFILE is patch.js's own profiler switch, so this one is spelled out in
+# full: setting FNH_PROFILE=1 to turn the profiler on used to make Chromium put
+# its profile in a directory called "1".
+PROFILE="${FNH_PROFILE_DIR:-/tmp/fearandhunger-profile}"
 rm -rf "$PROFILE"
 mkdir -p "$PROFILE" "$GAMEDIR/www/save"
 

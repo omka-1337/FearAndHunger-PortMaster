@@ -5,12 +5,13 @@
 // package.json. Nothing here edits the player's own files: the www/ folder they
 // copy in is read exactly as it came off their install.
 //
-// Four jobs, in order of how much they matter:
+// Five jobs, in order of how much they matter:
 //
 //   1. Stub greenworks, without which the game dies before the title screen.
 //   2. Keep the decoded audio small enough to fit a 1 GB handheld.
 //   3. Render into a buffer the size of the panel instead of 816x624.
 //   4. Survive, loudly, when the GPU context goes away.
+//   5. Spend the frame on what the player can actually see.
 //
 // Every knob can be overridden from the launcher with an environment variable,
 // which is how a tester narrows down a problem without editing this file.
@@ -46,7 +47,31 @@
         textureGcIdle: parseInt(process.env.FNH_TEXTURE_GC || '600', 10),
         verbose:     process.env.FNH_VERBOSE === '1',
         // Counts and times the three things MV spends its time on when a window opens.
-        profile:     process.env.FNH_PROFILE === '1'
+        profile:     process.env.FNH_PROFILE === '1',
+        // Logic steps the fixed timestep may run per rendered frame. The game ships
+        // TDDP_FluidTimestep, which replaces SceneManager.updateMain with a 1/60
+        // accumulator drained in a while loop. The moment a frame costs more than
+        // 16.6 ms that loop runs the whole of the map logic twice, which makes the
+        // frame longer again, which asks for a third step. It is a cliff with a 0.25 s
+        // floor, so up to 15 logic steps can land in one pass, and it is the best
+        // explanation anyone has for both the dungeon frame rate and the stalls when
+        // a window opens. 1 means never catch up: under load the game runs slower
+        // instead of freezing. 0 leaves the plugin's own loop alone.
+        maxSteps:    parseInt(process.env.FNH_MAX_STEPS || '1', 10),
+        // 0 none, 1 sprites only, 2 sprites and event logic. See section 5.
+        cull:        parseInt(process.env.FNH_CULL || '2', 10),
+        // Smallest gap in ms between two full page condition refreshes. Hunger and
+        // sanity tick constantly here, and every tick re-evaluates the pages of every
+        // event on the map. 0 refreshes as shipped.
+        refreshMs:   parseInt(process.env.FNH_REFRESH_MS || '50', 10)
+    };
+
+    // Counters the frame profiler reads. They live out here because the frame rate
+    // work installs on window load, after the plugins, while the profiler installs
+    // on DOMContentLoaded.
+    var perf = {
+        steps: 0, frames: 0, culledEv: 0, seenEv: 0, culledSpr: 0, refreshSkipped: 0,
+        keep: null
     };
 
     var fs = null, logPath = null;
@@ -350,9 +375,24 @@
                         '  [refresh=' + (acc.refresh / frames).toFixed(1) + 'ms x' + refreshes +
                         ' interp=' + (acc.interp / frames).toFixed(1) + 'ms' +
                         ' light=' + (acc.light / frames).toFixed(1) + 'ms]' +
+                        '  steps=' + ((perf.steps / Math.max(perf.frames || frames, 1)).toFixed(2)) + '/frame' +
+                        ' culled=' + (perf.seenEv ? Math.round(perf.culledEv / perf.seenEv * 100) : 0) + '%' +
+                        ' sprites=' + perf.culledSpr +
+                        ' refreshSkipped=' + perf.refreshSkipped +
                         '  slowframes=' + slow +
                         '  map#' + (($gameMap && $gameMap.mapId && $gameMap.mapId()) || 0) +
                         ' events=' + (($gameMap && $gameMap.events && $gameMap.events().length) || 0));
+                    // Which reason kept each event that was not skipped. If anything but
+                    // screen is large, the whitelist is doing real work and is not just
+                    // a position test.
+                    if (perf.keep) {
+                        log('  kept: ' + Object.keys(perf.keep).map(function (k) {
+                            return k + '=' + perf.keep[k];
+                        }).join(' '));
+                        Object.keys(perf.keep).forEach(function (k) { perf.keep[k] = 0; });
+                    }
+                    perf.steps = perf.frames = 0;
+                    perf.culledEv = perf.seenEv = perf.culledSpr = perf.refreshSkipped = 0;
                     // Sampled once per window rather than per sprite per frame.
                     try {
                         var evs = ($gameMap && $gameMap.events && $gameMap.events()) || [];
@@ -422,6 +462,159 @@
             // loads, which happens before window load, so this lands after it.
             ImageCache.limit = CFG.cacheMp * 1000 * 1000;
             log('ImageCache.limit = ' + CFG.cacheMp + ' Mpx (' + (CFG.cacheMp * 4) + ' MB of RGBA)');
+        }
+
+        //---------------------------------------------------------------------
+        // 5. Frame rate
+        //
+        // Everything here installs on window load rather than on DOMContentLoaded,
+        // because PluginManager has run by then. That ordering is the whole point: a
+        // wrapper installed last sits outermost, so an update it decides to skip skips
+        // the plugins' own aliases with it. Four of the enabled plugins alias the two
+        // methods below (FilterController, YEP_FootstepSounds, VE_FogAndOverlay and
+        // YEP_SaveEventLocations), and TDDP_FluidTimestep owns updateMain.
+        //---------------------------------------------------------------------
+
+        // 5a. Cap the fixed timestep's catch up.
+        if (CFG.maxSteps > 0 && typeof SceneManager !== 'undefined' &&
+                typeof SceneManager._accumulator === 'number') {
+            SceneManager.updateMain = function () {
+                var newTime = this.getTimeInMs();
+                var frameTime = (newTime - this._currentTime) / 1000;
+                if (frameTime > 0.25) frameTime = 0.25;
+                this._currentTime = newTime;
+                this._accumulator += frameTime;
+                var steps = 0;
+                while (this._accumulator >= this._dt && steps < CFG.maxSteps) {
+                    this.updateInputData();
+                    this.changeScene();
+                    this.updateScene();
+                    this._accumulator -= this._dt;
+                    this._t += this._dt;
+                    steps++;
+                }
+                // Drop the debt instead of carrying it. A frame that has already
+                // overrun is the last one that should owe the next one a logic step,
+                // and carrying it is what turns one slow frame into a stall.
+                if (this._accumulator >= this._dt) this._accumulator = 0;
+                perf.steps += steps;
+                perf.frames++;
+                this.renderScene();
+                this.requestUpdate();
+            };
+            log('timestep capped at ' + CFG.maxSteps + ' logic step(s) per rendered frame');
+        } else if (CFG.maxSteps > 0) {
+            log('no fixed timestep plugin here, SceneManager left alone');
+        }
+
+        // With the cap off the plugin's own loop runs, and the interesting number is
+        // how many logic steps it puts in one rendered frame. Count them either way,
+        // so FNH_MAX_STEPS=0 and =1 can be compared on the same scene.
+        if (!(CFG.maxSteps > 0 && typeof SceneManager !== 'undefined' &&
+                typeof SceneManager._accumulator === 'number') && typeof SceneManager !== 'undefined') {
+            var _updateScene = SceneManager.updateScene;
+            SceneManager.updateScene = function () {
+                perf.steps++;
+                return _updateScene.apply(this, arguments);
+            };
+        }
+
+        // 5b. Off screen sprites.
+        //
+        // A sprite outside the view has nothing to show. The only states that outlive
+        // the view are a requested animation and a balloon, so those keep updating.
+        if (CFG.cull >= 1 && typeof Sprite_Character !== 'undefined') {
+            var _spriteUpdate = Sprite_Character.prototype.update;
+            Sprite_Character.prototype.update = function () {
+                var c = this._character;
+                if (c && $gameMap && !c.isNearTheScreen() && !c.animationId() && !c.balloonId() &&
+                        !this.isAnimationPlaying() && !this.isBalloonPlaying()) {
+                    perf.culledSpr++;
+                    return;
+                }
+                return _spriteUpdate.apply(this, arguments);
+            };
+            log('off screen sprite updates skipped');
+        }
+
+        // 5c. Off screen event logic.
+        //
+        // What vanilla MV does to an off screen event is updateStop (which counts
+        // frames and drives a forced move route), updateMove if it is mid step,
+        // updateAnimation, checkEventTriggerAuto and updateParallel. Game_Event's own
+        // updateSelfMovement is already gated on isNearTheScreen in rpg_objects.js, so
+        // random, approach and custom route events do not walk off screen in the
+        // original game either. That leaves five states that are observable from
+        // outside the view, and each is a reason to update below: a forced move route
+        // (this game issues 16042 of them at other events), a running interpreter, an
+        // autorun or parallel page, a step in progress, and a requested animation or
+        // balloon. _stopCount is credited by hand so an event that comes back into
+        // view is exactly as ready to move as it would have been.
+        //
+        // isNearTheScreen is generous: it is a box one whole screen out in every
+        // direction, so an event has a screen of warning before it matters.
+        if (CFG.cull >= 2 && typeof Game_Map !== 'undefined') {
+            var keep = { screen: 0, forced: 0, moving: 0, page: 0, interp: 0, busy: 0, anim: 0 };
+            perf.keep = keep;
+            var needsUpdate = function (ev) {
+                if (ev.isNearTheScreen()) { keep.screen++; return true; }
+                if (ev._moveRouteForcing) { keep.forced++; return true; }
+                if (ev.isMoving() || ev.isJumping()) { keep.moving++; return true; }
+                if (ev._trigger === 3 || ev._trigger === 4) { keep.page++; return true; }
+                if (ev._interpreter && ev._interpreter.isRunning()) { keep.interp++; return true; }
+                if (ev._locked || ev.isStarting()) { keep.busy++; return true; }
+                if (ev.animationId() || ev.balloonId()) { keep.anim++; return true; }
+                return false;
+            };
+            Game_Map.prototype.updateEvents = function () {
+                var evs = this.events();
+                for (var i = 0; i < evs.length; i++) {
+                    var ev = evs[i];
+                    if (needsUpdate(ev)) {
+                        ev.update();
+                    } else {
+                        ev._stopCount++;
+                        perf.culledEv++;
+                    }
+                }
+                perf.seenEv += evs.length;
+                // Common events are the map's parallel processes. There are a handful
+                // of them and none of them has a position, so they always run.
+                var ce = this._commonEvents;
+                for (var j = 0; j < ce.length; j++) {
+                    ce[j].update();
+                }
+            };
+            log('off screen event updates skipped');
+        }
+
+        // 5d. Page condition refreshes.
+        //
+        // Game_Map.refresh re-evaluates the page conditions of every event on the map,
+        // and any switch or variable change asks for one. Hunger and sanity tick
+        // constantly here, so the profiler saw it run 320 times in ten seconds. The
+        // work is deferred rather than dropped: _needsRefresh stays set, and
+        // Game_Map.update asks again on the next frame.
+        if (CFG.refreshMs > 0 && typeof Game_Map !== 'undefined') {
+            var lastRefresh = -1e9;
+            var _mapRefresh = Game_Map.prototype.refresh;
+            Game_Map.prototype.refresh = function () {
+                var now = performance.now();
+                if (now - lastRefresh < CFG.refreshMs) {
+                    this._needsRefresh = true;
+                    perf.refreshSkipped++;
+                    return;
+                }
+                lastRefresh = now;
+                return _mapRefresh.apply(this, arguments);
+            };
+            var _mapSetup = Game_Map.prototype.setup;
+            Game_Map.prototype.setup = function () {
+                // A map that has just loaded refreshes at once, whatever the clock says.
+                lastRefresh = -1e9;
+                return _mapSetup.apply(this, arguments);
+            };
+            log('page condition refresh limited to one per ' + CFG.refreshMs + ' ms');
         }
     });
 })();
