@@ -231,11 +231,27 @@ if [ -z "${SDL_GAMECONTROLLERCONFIG_FILE:-}" ] && [ "${#sdl_controllerconfig}" -
   export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 fi
 
+# Chromium asks the session bus about screensavers, media keys and accessibility
+# whenever audio starts or stops, which here is every change of music. ROCKNIX
+# hands it an address libdbus cannot parse, so each of those asks failed with a
+# pair of ERROR lines - a log full of them, all saying nothing. A private session
+# bus for the engine's lifetime answers them instead: nobody is listening, the
+# engine moves on, and dbus-run-session tears it down when the engine exits. It
+# is only used once a trial run shows the firmware can start one.
+# None of this is network traffic: D-Bus is a socket between local processes.
+SESSION_BUS=""
+if command -v dbus-run-session >/dev/null 2>&1 && dbus-run-session -- true >/dev/null 2>&1; then
+  SESSION_BUS="dbus-run-session --"
+  echo "Session bus: a private one for the engine"
+else
+  echo "Session bus: none (no working dbus-run-session), expect dbus errors below"
+fi
+
 $GPTOKEYB2 "nw" -c "$GAMEDIR/fearandhunger.gptk" &
 
 pm_platform_helper "$BINARY"
 
-LD_PRELOAD="$PRELOAD" "$BINARY" $OZONE $GL_ARGS \
+$SESSION_BUS env LD_PRELOAD="$PRELOAD" "$BINARY" $OZONE $GL_ARGS \
     --user-data-dir="$PROFILE" \
     --disk-cache-dir="$PROFILE/cache" \
     --disk-cache-size=8388608 \

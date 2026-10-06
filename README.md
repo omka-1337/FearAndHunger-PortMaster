@@ -191,6 +191,14 @@ than in your hands.
 **"WARNING: no swap could be set up."** The port could not create its compressed swap, and on
 a 1 GB device the game will crawl. Usually means the `zram` module is missing from the kernel.
 
+**`log.txt` has `ERROR:` lines from Chromium.** Most are Chromium looking for desktop
+services a handheld does not have, and none of them is network traffic. `dbus` lines mean it
+could not reach a session bus - the launcher starts a private one when the firmware has
+`dbus-run-session`, and says on the `Session bus:` line whether it did. `libva` and `Vulkan`
+lines are hardware video decoding and Vulkan being probed and found missing; the port turns
+both off, so they should be gone. `Killed` at the end, followed by `GPU state invalid`, is
+what quitting with Start + Select looks like: gptokeyb2 ends the engine with SIGKILL.
+
 **It crashes straight away, with `gbm_create_device` in `log.txt`.** Chromium has loaded the
 `libgbm` from `libs.aarch64/` instead of the firmware's, and the two Mesa builds do not mix.
 The launcher prefers the firmware's copy and says which it found on the line starting
