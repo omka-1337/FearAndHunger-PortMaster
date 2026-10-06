@@ -31,7 +31,7 @@
         // quarter of the name entry window, which comes out clipped at any scale below
         // 1 for reasons three investigations have failed to pin down. Sharp and whole
         // beats fast and broken when the two are the same speed.
-        renderScale: VANILLA ? 1 : parseFloat(process.env.FNH_RENDER_SCALE || '1'),
+        renderScale: parseFloat(process.env.FNH_RENDER_SCALE || '1'),
         // Decoded audio costs duration x rate x channels x 4 bytes. 0 leaves it alone.
         audioHz:     parseInt(process.env.FNH_AUDIO_HZ || '22050', 10),
         // ImageCache limit in megapixels. The game ships 10 (40 MB of RGBA). Cutting
