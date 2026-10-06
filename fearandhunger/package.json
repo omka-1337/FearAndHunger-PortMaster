@@ -3,7 +3,7 @@
     "main": "www/index.html",
     "js-flags": "--expose-gc --max-old-space-size=256",
     "inject_js_start": "patch.js",
-    "chromium-args": "--allow-file-access-from-files --autoplay-policy=no-user-gesture-required --disable-features=CalculateNativeWinOcclusion --ignore-gpu-blocklist --enable-gpu-rasterization --disable-software-rasterizer --disable-dev-shm-usage --renderer-process-limit=1 --force-device-scale-factor=1 --disable-crash-reporter --no-sandbox",
+    "chromium-args": "--allow-file-access-from-files --autoplay-policy=no-user-gesture-required --disable-features=CalculateNativeWinOcclusion,Vulkan --disable-accelerated-video-decode --disable-accelerated-video-encode --ignore-gpu-blocklist --enable-gpu-rasterization --disable-software-rasterizer --disable-dev-shm-usage --renderer-process-limit=1 --force-device-scale-factor=1 --disable-crash-reporter --no-sandbox",
     "window": {
         "title": "Fear & Hunger",
         "toolbar": false,

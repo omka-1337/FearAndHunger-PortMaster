@@ -16,7 +16,7 @@
 back = esc
 start = esc
 
-a = escape
+a = esc
 b = enter
 x = backspace
 y = shift

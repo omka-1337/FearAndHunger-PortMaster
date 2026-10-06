@@ -27,6 +27,11 @@ if [ ! -f fearandhunger/libs.aarch64/libnss3.so ]; then
   exit 1
 fi
 
+if [ ! -x fearandhunger/tools/aarch64/oggenc ]; then
+  echo "ERROR: the audio tools are missing. Run ./fetch-tools.sh first."
+  exit 1
+fi
+
 rm -rf dist
 mkdir -p dist/stage/fearandhunger
 
@@ -36,6 +41,7 @@ cp fearandhunger/libs.aarch64-README.txt dist/stage/fearandhunger/libs.aarch64/R
 [ -f cover.png ] && cp cover.png dist/stage/fearandhunger/ || true
 cp -r fearandhunger/. dist/stage/fearandhunger/
 rm -rf dist/stage/fearandhunger/userdata dist/stage/fearandhunger/www
+rm -rf dist/stage/fearandhunger/tools/__pycache__
 rm -f dist/stage/fearandhunger/log.txt dist/stage/fearandhunger/log-game.txt
 
 python3 - <<'PY'
@@ -51,7 +57,7 @@ for root, dirs, files in os.walk("dist/stage"):
 def executable(arc):
     return (arc.endswith(".sh") or arc.endswith(".py")
             or arc.endswith("/nwjs/nw") or arc.endswith(".so")
-            or "/nwjs/lib/" in arc)
+            or "/nwjs/lib/" in arc or "/tools/aarch64/ogg" in arc)
 
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
     for p in sorted(entries):
