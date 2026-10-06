@@ -159,6 +159,7 @@ file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
 | `FNH_AUDIO_HZ` | `22050` | Audio context rate. `0` leaves it at the device default. |
 | `FNH_TEXTURE_GC` | `600` | Frames PIXI keeps an unused texture. `rpg_core.js` sets 1. |
 | `FNH_SKIP_VIDEO` | off | Skips the intro: 33 seconds of 816x624 VP9 decoded in software. |
+| `FNH_FIRMWARE_GPU` | `1` | Uses the firmware's own `libgbm`, `libdrm` and `libwayland-server`, which have to match its Mesa. `0` uses the copies in `libs.aarch64/`. |
 | `FNH_VERBOSE` | off | Frame rate, heap and scene names into `fearandhunger/log-game.txt`. |
 | `FNH_FRAMEPROF` | off | Splits each frame into map logic, sprites and drawing, and names what loaded during any frame over 100 ms. |
 
@@ -189,6 +190,12 @@ than in your hands.
 
 **"WARNING: no swap could be set up."** The port could not create its compressed swap, and on
 a 1 GB device the game will crawl. Usually means the `zram` module is missing from the kernel.
+
+**It crashes straight away, with `gbm_create_device` in `log.txt`.** Chromium has loaded the
+`libgbm` from `libs.aarch64/` instead of the firmware's, and the two Mesa builds do not mix.
+The launcher prefers the firmware's copy and says which it found on the line starting
+`GPU libraries from the firmware`; if that reads `none`, please report where your firmware
+keeps `libgbm.so.1`.
 
 **The screen stays black.** Try a different GL backend before concluding anything:
 

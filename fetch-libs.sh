@@ -14,6 +14,9 @@
 # The libraries that the device does have, and that these depend on, are left
 # well alone: glib, gobject, gio, cairo, pango, dbus, expat, udev and alsa stay
 # the firmware's own, because overriding those is how you break a system.
+# libgbm, libdrm and libwayland-server are bundled for firmware that lacks them,
+# but they belong to the firmware's Mesa, so wherever it has its own the launcher
+# preloads those and these copies are never loaded.
 set -euo pipefail
 
 cd "$(dirname "$(realpath "$0")")"

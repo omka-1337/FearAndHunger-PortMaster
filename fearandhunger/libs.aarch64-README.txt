@@ -11,4 +11,10 @@ source packages in MANIFEST.txt. Rebuild the folder with ./fetch-libs.sh.
 Libraries the firmware does have are deliberately not overridden: glib, gobject,
 gio, cairo, pango, dbus, expat, udev and alsa stay the system's own.
 
+libgbm, libdrm and libwayland-server are here only for firmware without them.
+libgbm loads the firmware's Mesa driver and has to come from the same Mesa build,
+so wherever the firmware has its own the launcher preloads those instead, and
+the copies here are never loaded. Debian's libgbm from Mesa 22.3 crashed inside
+gbm_create_device against ROCKNIX's current Mesa.
+
 If the launcher still reports something missing on your device, send the list.

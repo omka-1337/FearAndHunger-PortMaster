@@ -193,6 +193,34 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
 # the canvas renderer, so a device without working GLES cannot run it anyway.
 GL_ARGS="${FNH_GL_ARGS:---use-angle=gles}"
 
+# The graphics stack is the firmware's own, and these three have to be as well.
+# libgbm loads the firmware's Mesa driver, and the two only work as a pair from
+# one Mesa build; libdrm and libwayland-server sit underneath it. libs.aarch64
+# carries Debian's copies, from Mesa 22.3, for firmware that has none - KNULLI,
+# where Chromium cannot draw anyway - but LD_LIBRARY_PATH puts them in front of
+# the firmware's on every device. On ROCKNIX that libgbm met a current Mesa and
+# dereferenced a null pointer inside gbm_create_device, which took Chromium down
+# before a window ever opened. Preloading the firmware's copies by path beats
+# LD_LIBRARY_PATH: the loader matches libraries by SONAME, finds these already
+# loaded and never goes looking in libs.aarch64. FNH_FIRMWARE_GPU=0 goes back to
+# the bundled ones.
+GPU_PRELOAD=""
+if [ "${FNH_FIRMWARE_GPU:-1}" != "0" ]; then
+  for lib in libgbm.so.1 libdrm.so.2 libwayland-server.so.0; do
+    for dir in /usr/lib/aarch64-linux-gnu /usr/lib64 /usr/lib /lib/aarch64-linux-gnu /lib64 /lib; do
+      if [ -e "$dir/$lib" ]; then
+        GPU_PRELOAD="${GPU_PRELOAD:+$GPU_PRELOAD:}$dir/$lib"
+        break
+      fi
+    done
+  done
+fi
+echo "GPU libraries from the firmware: ${GPU_PRELOAD:-none, using the bundled ones}"
+PRELOAD="$GPU_PRELOAD"
+if [ -n "${LD_PRELOAD:-}" ]; then
+  PRELOAD="${PRELOAD:+$PRELOAD:}$LD_PRELOAD"
+fi
+
 # Hand SDL the controller database by file, not by value. ROCKNIX's copy of
 # $sdl_controllerconfig is the whole 476 KB database, and Linux caps a single
 # environment string at 128 KB, so exporting it makes every later exec fail with
@@ -207,7 +235,7 @@ $GPTOKEYB2 "nw" -c "$GAMEDIR/fearandhunger.gptk" &
 
 pm_platform_helper "$BINARY"
 
-"$BINARY" $OZONE $GL_ARGS \
+LD_PRELOAD="$PRELOAD" "$BINARY" $OZONE $GL_ARGS \
     --user-data-dir="$PROFILE" \
     --disk-cache-dir="$PROFILE/cache" \
     --disk-cache-size=8388608 \
