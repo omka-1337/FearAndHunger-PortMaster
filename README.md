@@ -192,10 +192,10 @@ than in your hands.
 a 1 GB device the game will crawl. Usually means the `zram` module is missing from the kernel.
 
 **`log.txt` has `ERROR:` lines from Chromium.** Most are Chromium looking for desktop
-services a handheld does not have, and none of them is network traffic. `dbus` lines mean it
-could not reach a session bus. They are harmless, and they are still there on ROCKNIX even
-with the private session bus the launcher starts when the firmware has `dbus-run-session`
-(the `Session bus:` line says whether it did). `libva` and `Vulkan`
+services a handheld does not have, and none of them is network traffic. `dbus` lines are
+Chromium asking a session bus - a socket between local processes - about screensavers and
+media keys whenever the music changes; ROCKNIX gives it an address it cannot parse, and
+nothing is lost when the ask fails. `libva` and `Vulkan`
 lines are hardware video decoding and Vulkan being probed and found missing; the port turns
 both off, so they should be gone. `Killed` at the end, followed by `GPU state invalid`, is
 what quitting with Start + Select looks like: gptokeyb2 ends the engine with SIGKILL.
