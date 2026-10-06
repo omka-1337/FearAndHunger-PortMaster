@@ -4,6 +4,15 @@
 # GitHub's per-file limit - so the archive is assembled here from the three fetch
 # scripts, which pin what they download. That also means the published zip is
 # reproducible from the tag rather than from whatever happened to be on a laptop.
+#
+# A release can start either way round. Pushing a tag makes the release here,
+# with .github/release-notes.md as its text. Publishing a release on GitHub's
+# page makes the tag, which runs this too, and then the release already exists:
+# the archive is attached to it and the notes written there are left alone.
+#
+# Run by hand with a tag, it builds that tag and attaches the archive to its
+# release - the way to fill in a release whose build failed. Run by hand
+# without one, it only builds, and keeps the archive as a workflow artifact.
 
 name: Release
 
@@ -12,15 +21,24 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Build this tag and attach the archive to its release (empty: build only)'
+        required: false
+        default: ''
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG || github.ref }}
 
       - name: Fetch the NW.js runtime
         run: ./fetch-runtime.sh
@@ -43,16 +61,22 @@ jobs:
           unzip -l dist/fearandhunger.zip | tail -1
 
       - name: Publish
-        if: startsWith(github.ref, 'refs/tags/')
+        if: env.TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/fearandhunger.zip \
-            --title "${GITHUB_REF_NAME}" \
-            --notes-file .github/release-notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/fearandhunger.zip --clobber
+            echo "Attached to the existing release $TAG"
+          else
+            gh release create "$TAG" dist/fearandhunger.zip \
+              --title "$TAG" \
+              --notes-file .github/release-notes.md
+          fi
 
-      - name: Keep the archive when run by hand
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Keep the archive when there is no release to attach it to
+        if: env.TAG == ''
         uses: actions/upload-artifact@v4
         with:
           name: fearandhunger-zip
