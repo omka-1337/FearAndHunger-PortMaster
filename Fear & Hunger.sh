@@ -235,9 +235,10 @@ fi
 # whenever audio starts or stops, which here is every change of music. ROCKNIX
 # hands it an address libdbus cannot parse, so each of those asks failed with a
 # pair of ERROR lines - a log full of them, all saying nothing. A private session
-# bus for the engine's lifetime answers them instead: nobody is listening, the
-# engine moves on, and dbus-run-session tears it down when the engine exits. It
-# is only used once a trial run shows the firmware can start one.
+# bus for the engine's lifetime was meant to answer them instead. On an RG40XX V
+# under ROCKNIX it did not silence them, and why is not known yet; it stays
+# because it costs nothing, dbus-run-session tears it down when the engine
+# exits, and it is only used once a trial run shows the firmware can start one.
 # None of this is network traffic: D-Bus is a socket between local processes.
 SESSION_BUS=""
 if command -v dbus-run-session >/dev/null 2>&1 && dbus-run-session -- true >/dev/null 2>&1; then
