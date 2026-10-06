@@ -15,5 +15,12 @@ Several are LGPL (gnutls, atk, at-spi, idn2, unistring, gmp) and one is MPL
 (nss); MANIFEST.txt in that folder names the exact Debian source package and
 version every one of them came from, which is where their sources live.
 
+tools/aarch64/ holds oggdec and oggenc, which the first launch uses to
+re-encode the game's music, and the libraries they link. They are the stock
+Ubuntu 22.04 arm64 binaries, unmodified. vorbis-tools is GPL-2; libogg,
+libvorbis and libFLAC are BSD-style. Their copyright files ship in
+tools/aarch64/copyright/, and MANIFEST.txt in that folder names the exact
+Ubuntu source package and version each came from.
+
 Nothing of Fear & Hunger is distributed here. The game is a paid title and its
 files come from the player's own copy.

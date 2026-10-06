@@ -187,8 +187,9 @@
         // Chromium decodes to the AudioContext's sample rate, so asking for a
         // lower one shrinks every buffer without touching a single file. Measured
         // on the three longest tracks at once: 292 MB of PCM as shipped, 67 MB
-        // with this plus the mono re-encode from tools/optimize_audio.py. Neither
-        // half does the job alone - the rate here, the channel count there.
+        // with this plus the mono re-encode tools/optimize_audio.py does on the
+        // first launch. Neither half does the job alone - the rate here, the
+        // channel count there.
         //---------------------------------------------------------------------
         if (CFG.audioHz) {
             WebAudio._createContext = function () {

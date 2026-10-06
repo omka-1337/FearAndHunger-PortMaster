@@ -12,8 +12,9 @@ of the three. The launcher checks before it starts and says so by name.
 
 The game is paid, so only the engine ships here: NW.js 0.117 for aarch64, which is Chromium
 with Node, because RPG Maker MV games are web pages and there is no native engine to swap in
-the way mkxp-z replaces RGSS. Nothing in the port edits the files you copy in - every fix is
-injected ahead of the game's own scripts through `inject_js_start`.
+the way mkxp-z replaces RGSS. Every fix to the game is injected ahead of its own scripts through
+`inject_js_start`; the one thing the port changes in the files you copy in is the music, which
+the first launch re-encodes to mono so it fits in memory.
 
 ## Disclaimer
 
@@ -24,9 +25,8 @@ This project uses AI to write code and documentation. All code and documentation
 - [Installing](#installing)
   - [1. Check your firmware](#1-check-your-firmware)
   - [2. Install the port](#2-install-the-port)
-  - [3. Prepare the game's audio](#3-prepare-the-games-audio)
-  - [4. Copy the game across](#4-copy-the-game-across)
-  - [5. Play](#5-play)
+  - [3. Copy the game across](#3-copy-the-game-across)
+  - [4. Play](#4-play)
 - [Controls](#controls)
 - [What the port changes, and why](#what-the-port-changes-and-why)
 - [Settings](#settings)
@@ -38,8 +38,9 @@ This project uses AI to write code and documentation. All code and documentation
 
 ## Installing
 
-You need: the game on Steam, a PC with `python3` and `ffmpeg`, and a handheld running
-firmware with DRM/KMS graphics. Budget half an hour, most of it copying files.
+You need: the game on Steam, a way to copy files onto the SD card, and a handheld running
+firmware with DRM/KMS graphics. Budget half an hour, most of it copying files. Nothing has to
+be run on the PC.
 
 ### 1. Check your firmware
 
@@ -63,30 +64,16 @@ ports/
     └── tools/
 ```
 
-The game is not in there. That is the next two steps.
+The game is not in there. That is the next step.
 
-### 3. Prepare the game's audio
+### 3. Copy the game across
 
-On your PC, find your installation:
+Find your installation:
 
 | | |
 |--|--|
 | Windows | `C:\Program Files (x86)\Steam\steamapps\common\Fear & Hunger\www` |
 | Linux | `~/.local/share/Steam/steamapps/common/Fear & Hunger/www` |
-
-Copy that `www` folder somewhere first if you would rather not touch your installed copy,
-then run the converter over it:
-
-```
-python3 tools/optimize_audio.py /path/to/www/audio --inplace
-```
-
-It rewrites 33 music and ambience tracks to mono, which takes a couple of minutes and shrinks
-them from 181 MB to about 21 MB. This matters more than it sounds: MV holds whole tracks in
-memory uncompressed, and the longest one in this game is 109 MB of RAM by itself. Skip the
-step and the game still runs, with far less room to run in. Sound effects are left alone.
-
-### 4. Copy the game across
 
 Copy the whole `www` folder into the port folder, so it sits next to `patch.js`:
 
@@ -100,17 +87,33 @@ ports/fearandhunger/
 └── ...
 ```
 
-About 700 MB after the audio step. `Game.exe`, the `.dll` files, `locales/`, `swiftshader/`
-and the loose `package.json` next to them are the Windows engine - leave all of that behind,
-this port brings its own.
+About 860 MB, and about 700 MB once the first launch has done the audio. `Game.exe`, the
+`.dll` files, `locales/`, `swiftshader/` and the loose `package.json` next to them are the
+Windows engine - leave all of that behind, this port brings its own.
 
 Saves land in `www/save`, exactly as on the desktop, so a save made on a PC loads here and
 the other way round.
 
-### 5. Play
+### 4. Play
 
-Start it from the Ports menu. The first launch sets up a gigabyte of compressed swap, which
-is what keeps the game out of trouble on a 1 GB device, and gives it back when you quit.
+Start it from the Ports menu.
+
+The first launch prepares the audio before the game starts, and PortMaster's message window
+counts the tracks off as it goes. It rewrites 33 music and ambience tracks to mono, which
+shrinks them from 181 MB to about 21 MB and takes a few minutes. This matters more than it
+sounds: MV holds whole tracks in memory uncompressed, and the longest one in this game is
+109 MB of RAM by itself. It happens once - every launch after that checks, finds nothing to
+do and goes straight to the game. If it is interrupted, the next launch picks up where it
+stopped; a track is only replaced once its new version is complete. Sound effects are left
+alone. Loop points survive: they are counted in samples, so they are rescaled along with the
+sample rate.
+
+Every launch also sets up a gigabyte of compressed swap, which is what keeps the game out of
+trouble on a 1 GB device, and gives it back when you quit.
+
+The converter also runs on a PC, which is faster, if you would rather do it before copying:
+`python3 tools/optimize_audio.py /path/to/www/audio --inplace`, with `ffmpeg` or vorbis-tools
+installed. The first launch then finds the tracks already done.
 
 ## Controls
 
@@ -163,6 +166,15 @@ file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
 
 The launcher checks what it can before starting anything, and everything it prints also goes
 to `fearandhunger/log.txt`. The game's own side writes `fearandhunger/log-game.txt`.
+
+**The first launch says "Cannot shrink the music".** The converter could not run the encoder
+it brings in `tools/aarch64/`. The game still starts, but its music takes twice the memory it
+should. `log.txt` has the reason; please report it. Converting on a PC (see [Play](#4-play))
+gets around it.
+
+**The first launch sits on a black screen for a few minutes.** That is the audio being
+prepared on a PortMaster too old to have the message window that shows it. Wait it out, or
+update PortMaster. `log.txt` lists each track as it is done.
 
 **"Game files not found."** The `www` folder is not where the port looks, or only part of it
 arrived. It wants `fearandhunger/www/index.html` and `fearandhunger/www/js/rpg_core.js` to
@@ -232,15 +244,18 @@ The engine is not in this repository: `libnw.so` alone is 283 MB, past what GitH
 ```
 ./fetch-runtime.sh
 ./fetch-libs.sh
+./fetch-tools.sh
 ```
 
-The first downloads the official NW.js aarch64 tarball, checks it against a pinned SHA-256, drops 227 of the 228 locale packs, the software rasteriser, the high-dpi asset pack and the crash reporter, and installs the rest into `fearandhunger/nwjs/`. The second pulls 45 pinned Debian packages, flattens them to their SONAMEs in `fearandhunger/libs.aarch64/`, and prints what it still expects the firmware to provide.
+The first downloads the official NW.js aarch64 tarball, checks it against a pinned SHA-256, drops 227 of the 228 locale packs, the software rasteriser, the high-dpi asset pack and the crash reporter, and installs the rest into `fearandhunger/nwjs/`. The second pulls 45 pinned Debian packages, flattens them to their SONAMEs in `fearandhunger/libs.aarch64/`, and prints what it still expects the firmware to provide. The third pulls `oggdec` and `oggenc` from vorbis-tools with the five libraries they link, six Ubuntu 22.04 arm64 packages pinned by SHA-256, into `fearandhunger/tools/aarch64/`: about a megabyte, for the first launch's audio conversion.
 
-Then `./build-release.sh` stages the metadata the way a released port expects and writes `dist/fearandhunger.zip`, refusing to run if either of those is missing or if any game file has found its way into the port folder.
+Then `./build-release.sh` stages the metadata the way a released port expects and writes `dist/fearandhunger.zip`, refusing to run if any of those is missing or if any game file has found its way into the port folder.
 
 ## Licence
 
 The port's own files are MIT, see [LICENSE](LICENSE). The engine and the system libraries it
 brings carry their own terms, set out in `fearandhunger/licenses/README.txt`; the libraries
 are stock Debian binaries, unmodified, with their source packages named in
-`fearandhunger/libs.aarch64/MANIFEST.txt`. The game itself is never redistributed.
+`fearandhunger/libs.aarch64/MANIFEST.txt`, and the audio tools are stock Ubuntu binaries,
+named the same way in `fearandhunger/tools/aarch64/MANIFEST.txt`. The game itself is never
+redistributed.

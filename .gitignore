@@ -8,6 +8,9 @@ fearandhunger/nwjs/
 # Chromium's missing system libraries, built by ./fetch-libs.sh from Debian.
 fearandhunger/libs.aarch64/
 
+# The audio converter's oggdec and oggenc, fetched by ./fetch-tools.sh.
+fearandhunger/tools/aarch64/
+
 
 # Runtime artefacts
 fearandhunger/userdata/
@@ -17,6 +20,7 @@ fearandhunger/log-game.txt
 # Build output
 dist/
 *.zip
+__pycache__/
 
 # Other
 testing_thread.txt

@@ -5,9 +5,9 @@ which draws through X11, Wayland or DRM/KMS and nothing else; KNULLI on Allwinne
 has none of the three. The launcher checks before starting and says so by name.
 
 **The game is not included.** This is the engine only — NW.js 0.117 for aarch64 — plus the
-compatibility layer. You supply your own `www` folder from Steam. See the README for the
-five-step walkthrough, including the one-off audio conversion that the game needs to fit in
-1 GB of RAM.
+compatibility layer. You supply your own `www` folder from Steam and copy it in; nothing has to
+be run on a PC. The first launch spends a few minutes re-encoding the game's music to mono,
+which it needs to fit in 1 GB of RAM. See the README for the walkthrough.
 
 ### State
 
@@ -24,7 +24,9 @@ RG40XX V. Not smooth, but a game you can sit down with.
   filters and keeps decoded audio small enough to fit
 - A launcher that sets up compressed swap, finds the compositor, checks for missing libraries
   and reports what is wrong in plain words
-- Tools for the audio conversion and for decrypting assets
+- The audio converter the first launch runs, with the oggdec and oggenc it needs for
+  aarch64 (stock Ubuntu binaries, named in `tools/aarch64/MANIFEST.txt`), and a tool for
+  decrypting assets
 
 ### Known issues
 

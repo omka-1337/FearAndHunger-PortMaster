@@ -34,6 +34,7 @@ fi
 # NW.js is Chromium, so it wants a good deal more of the system than a normal
 # port does. Name what is missing rather than dying with a blank screen. The
 # dynamic loader does this for us, no ldd needed.
+FIRMWARE_LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH="$GAMEDIR/libs.aarch64:$GAMEDIR/nwjs/lib:$LD_LIBRARY_PATH"
 # nw carries an RPATH of $ORIGIN/lib, so tracing it covers libnw.so and everything
 # below it. libnw.so itself has no interpreter and cannot be traced directly, which
@@ -70,6 +71,31 @@ if [ ! -d /dev/dri ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ -z "${DISPLAY:-}" ]; 
   echo "provide /dev/dri, and the port works there."
   sleep 10
   exit 1
+fi
+
+# The game holds every track it plays fully decoded in memory, and its longest
+# ambience is 109 MB of that by itself. patch.js decodes at 22050 Hz, which
+# halves it; tools/optimize_audio.py re-encodes the music and ambience to mono
+# with the oggdec and oggenc in tools/aarch64, which halves it again. The first
+# launch does the work, a few minutes of it, and rewrites those tracks in www/
+# for good; every launch after that finds each one already done and is back in
+# a moment. The script prints only when there is work to show, so PortMaster's
+# message window opens on that first launch and stays shut on the rest.
+# python3 is the firmware's own - PortMaster runs on it - and gets the
+# firmware's libraries: libs.aarch64 carries a zlib, libffi and openssl older
+# than the ones it may have been built against.
+if command -v python3 >/dev/null 2>&1; then
+  while IFS= read -r line; do
+    if type pm_message >/dev/null 2>&1; then
+      pm_message "$line"
+    else
+      echo "$line"
+    fi
+  done < <(LD_LIBRARY_PATH="$FIRMWARE_LD_LIBRARY_PATH" \
+             python3 -u "$GAMEDIR/tools/optimize_audio.py" "$GAMEDIR/www/audio" --inplace)
+else
+  echo "No python3 on this device, so the music stays stereo and takes twice the"
+  echo "memory it needs. The game will run, with far less room to run in."
 fi
 
 # Give the kernel somewhere to put compressed memory. Without swap its only way

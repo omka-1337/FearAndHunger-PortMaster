@@ -13,7 +13,7 @@
         ],
         "desc": "Descend into the dungeons of Fear & Hunger, a brutal survival horror RPG where limbs come off, the dark is real and saving costs you something. RPG Maker MV on an NW.js runtime. Needs firmware with DRM/KMS graphics: ROCKNIX, not KNULLI.",
         "desc_md": null,
-        "inst": "Requires firmware with DRM/KMS graphics - ROCKNIX works, KNULLI on the same hardware cannot draw at all. Copy the www/ folder from your own Steam installation into the fearandhunger/ folder, alongside the engine. Then run fearandhunger/tools/optimize_audio.py over www/audio on a PC: without it the game needs more memory than a 1 GB device has. See README.md for the frame rate settings.",
+        "inst": "Requires firmware with DRM/KMS graphics - ROCKNIX works, KNULLI on the same hardware cannot draw at all. Copy the www/ folder from your own Steam installation into the fearandhunger/ folder, alongside the engine. The first launch then spends a few minutes re-encoding the game's music to mono, which it needs to fit in 1 GB; nothing has to be run on a PC. See README.md for the frame rate settings.",
         "inst_md": null,
         "genres": [
             "rpg",
