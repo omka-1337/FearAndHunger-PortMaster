@@ -38,7 +38,6 @@ mkdir -p dist/stage/fearandhunger
 cp "Fear & Hunger.sh" dist/stage/
 cp port.json README.md PERFORMANCE.md LICENSE gameinfo.xml screenshot.png dist/stage/fearandhunger/
 cp fearandhunger/libs.aarch64-README.txt dist/stage/fearandhunger/libs.aarch64/README.txt 2>/dev/null || true
-[ -f cover.png ] && cp cover.png dist/stage/fearandhunger/ || true
 cp -r fearandhunger/. dist/stage/fearandhunger/
 rm -rf dist/stage/fearandhunger/userdata dist/stage/fearandhunger/www
 rm -rf dist/stage/fearandhunger/tools/__pycache__
