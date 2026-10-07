@@ -9,11 +9,7 @@ dungeon. Not smooth, but a game you can sit down with.
 > [!WARNING]
 Only ROCKNIX, since Chromium—on which RPG Maker MV is based—requires DRM/KMS, and the port uses NW.js, which also requires the X11/Wayland compositor.
 
-The game is paid, so only the engine ships here: NW.js 0.117 for aarch64, which is Chromium
-with Node, because RPG Maker MV games are web pages and there is no native engine to swap in
-the way mkxp-z replaces RGSS. Every fix to the game is injected ahead of its own scripts through
-`inject_js_start`; the one thing the port changes in the files you copy in is the music, which
-the first launch re-encodes to mono so it fits in memory.
+The game is paid — only the engine ships here (NW.js 0.117 aarch64). All fixes are injected via `inject_js_start`. On first launch audio is re-encoded to mono to fit in 1 GB RAM.
 
 ## Disclaimer
 
@@ -43,55 +39,38 @@ be run on the PC.
 
 ### 1. Check your firmware
 
-ROCKNIX works. KNULLI on Allwinner hardware does not, and no setting will change that - it
-drives the panel through the framebuffer and Chromium cannot draw there. If you are unsure,
-install the port anyway and run it once: it checks and tells you in plain words.
+ROCKNIX only. Port checks and reports if DRM/KMS is missing.
 
 ### 2. Install the port
 
-Through PortMaster, or by hand: unzip `fearandhunger.zip` into your ports folder, which is
-`/roms/ports` on ROCKNIX. You should end up with:
-
-```
-ports/
-├── Fear & Hunger.sh
-└── fearandhunger/
-    ├── nwjs/             the engine
-    ├── libs.aarch64/     libraries the firmware lacks
-    ├── package.json
-    ├── patch.js
-    └── tools/
-```
-
-The game is not in there. That is the next step.
+unzip `fearandhunger.zip` into `/roms/ports`:
+   ```
+   ports/
+   ├── Fear & Hunger.sh
+   └── fearandhunger/
+       ├── nwjs/
+       ├── libs.aarch64/
+       ├── package.json
+       ├── patch.js
+       └── tools/
+   ```
 
 ### 3. Copy the game across
 
-Find your installation:
-
-| | |
-|--|--|
-| Windows | `C:\Program Files (x86)\Steam\steamapps\common\Fear & Hunger\www` |
-| Linux | `~/.local/share/Steam/steamapps/common/Fear & Hunger/www` |
-
-Copy the whole `www` folder into the port folder, so it sits next to `patch.js`:
-
-```
-ports/fearandhunger/
-├── www/              <- yours
-│   ├── audio/  data/  fonts/  img/  js/  movies/
-│   └── index.html
-├── nwjs/
-├── patch.js
-└── ...
+From `steam/steamapps/Fear & Hunger` copy `www` into `ports/fearandhunger/www/`:
+   ```
+   ports/fearandhunger/
+   ├── www/          ← your copy (~860 MB → ~700 MB after audio)
+   │   ├── audio/ data/ fonts/ img/ js/ movies/
+   │   └── index.html
+   ├── nwjs/
+   ├── patch.js
+   └── …
+   ```..
 ```
 
-About 860 MB, and about 700 MB once the first launch has done the audio. `Game.exe`, the
-`.dll` files, `locales/`, `swiftshader/` and the loose `package.json` next to them are the
-Windows engine - leave all of that behind, this port brings its own.
-
-Saves land in `www/save`, exactly as on the desktop, so a save made on a PC loads here and
-the other way round.
+Leave Windows engine files (`Game.exe`, `.dll`, etc.) behind.  
+Saves are in `www/save` and are cross-compatible with PC.
 
 ### 4. Play
 
@@ -114,150 +93,89 @@ If, for some reason, the game crashes, the launcher will not reconvert tracks th
 | Start | Menu |
 | Start + Select | Quit |
 
-Face buttons follow the device's own labels, so on a Nintendo style layout Confirm sits on B. Say if yours differs. The game is keyboard only, no gamepad plugin is enabled and `YEP_KeyboardConfig` keeps MV's stock bindings, so everything goes through gptokeyb2 and `fearandhunger.gptk`.
+Face buttons follow device labels (Nintendo-style: Confirm on B). Keyboard-only game; bindings via gptokeyb2 + `fearandhunger.gptk`.
 
 ## What the port changes, and why
 
-Everything below can be turned off or retuned with an environment variable, which is how to narrow down a problem without editing a file.
+All toggles are environment variables (e.g. `FNH_FILTERS=99 ./"Fear & Hunger.sh"`).
 
-**The Steamworks plugin is stubbed.** `js/plugins/Archeia_Steamworks.js` is enabled and requires `js/libs/greenworks` at the top level of the file, but that module only ships `.node` binaries for Windows and macOS. On aarch64 it resolves to nothing and the next line inside it throws, before the title screen, every time. The port intercepts that one require and hands the plugin an inert object, so `initAPI()` is falsy and every Steam call short circuits. The 205 achievement triggers in the game's event data are plugin commands, and MV silently ignores plugin commands it does not know, so nothing else notices. Achievements are the only casualty and there is no Steam client here to receive them.
-
-**The audio context runs at 22050 Hz** (`FNH_AUDIO_HZ=0` to disable), for the reasons above.
-
-**Fullscreen shader filters are off, the frame rate knobs are on.** See Settings; the reasoning is in [PERFORMANCE.md](PERFORMANCE.md).
-
-**A lost GPU context reloads the game.** PIXI 4.5.4 does not recover from one: the game keeps running and keeps drawing, but what reaches the screen is corrupt, usually a vertically mirrored frame. On a handheld the context is lost when the device sleeps. The port reloads at the title screen instead, with saves intact. `FNH_NO_GL_RELOAD=1` leaves it alone.
+| Change | Why | Toggle |
+|--------|-----|--------|
+| Steamworks stubbed | No aarch64 greenworks; would crash before title | always |
+| Audio @ 22050 Hz | Saves RAM (MV keeps all tracks uncompressed) | `FNH_AUDIO_HZ=0` |
+| Fullscreen filters off | ~14 fps cost on some maps | `FNH_FILTERS=99` |
+| Lost GL context → reload | PIXI 4.5.4 never recovers; common after sleep | `FNH_NO_GL_RELOAD=1` |
 
 ## Settings
 
 Everything is an environment variable, so a tester can change one thing without editing a
 file: `FNH_FILTERS=99 ./"Fear & Hunger.sh"`.
 
-| Variable | Default | What it does |
-|--|--|--|
-| `FNH_FILTERS` | `0` | Fullscreen shader passes. The game asks FilterController for zoomblur, rgbsplit, godray and adjustment on about a third of its maps; one map stacks two zoomblurs and an rgbsplit, which cost 14 fps against 21 without them. `99` restores the game's own look. |
-| `FNH_FOG` | `99` | How many of a map's fog layers to draw. 46 maps carry three fullscreen additive layers each. Untested as a frame rate knob - it was not the cause of the slow map that filters turned out to be. |
-| `FNH_MAX_STEPS` | `2` | Logic steps the fixed timestep may run per rendered frame. `1` is smoother and runs the game at a third speed; `0` restores the plugin's own uncapped loop. |
-| `FNH_CULL` | `1` | `1` skips the logic of off-screen events, which nothing can see. `2` also skips their sprites, which is faster and makes a character you walk towards appear late and at arm's length. `0` updates everything. |
-| `FNH_REFRESH_MS` | `50` | Minimum gap between page condition refreshes. |
-| `FNH_RENDER_SCALE` | `1` | Fraction of 816x624 to render into. `0` matches the panel. Below 1 clips part of the name entry window, and with the filters off it buys nothing measurable. |
-| `FNH_CACHE_MP` | `12` | Image cache ceiling in megapixels, against the game's own 10. |
-| `FNH_AUDIO_HZ` | `22050` | Audio context rate. `0` leaves it at the device default. |
-| `FNH_TEXTURE_GC` | `600` | Frames PIXI keeps an unused texture. `rpg_core.js` sets 1. |
-| `FNH_SKIP_VIDEO` | off | Skips the intro: 33 seconds of 816x624 VP9 decoded in software. |
-| `FNH_FIRMWARE_GPU` | `1` | Uses the firmware's own `libgbm`, `libdrm` and `libwayland-server`, which have to match its Mesa. `0` uses the copies in `libs.aarch64/`. |
-| `FNH_VERBOSE` | off | Frame rate, heap and scene names into `fearandhunger/log-game.txt`. |
-| `FNH_FRAMEPROF` | off | Splits each frame into map logic, sprites and drawing, and names what loaded during any frame over 100 ms. |
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `FNH_FILTERS` | `0` | Fullscreen shader passes (zoomblur, etc.). `99` = original look |
+| `FNH_FOG` | `99` | Max fog layers drawn |
+| `FNH_MAX_STEPS` | `2` | Logic steps per rendered frame. `1` = smoother but ⅓ speed; `0` = uncapped |
+| `FNH_CULL` | `1` | `1` skip off-screen event logic; `2` also skip sprites; `0` = everything |
+| `FNH_REFRESH_MS` | `50` | Min gap between page condition refreshes |
+| `FNH_RENDER_SCALE` | `1` | Fraction of 816×624. Below 1 clips name-entry window |
+| `FNH_CACHE_MP` | `12` | Image cache ceiling (MP) |
+| `FNH_AUDIO_HZ` | `22050` | Audio context rate. `0` = device default |
+| `FNH_TEXTURE_GC` | `600` | Frames before PIXI drops unused texture |
+| `FNH_SKIP_VIDEO` | off | Skip 33 s intro video |
+| `FNH_FIRMWARE_GPU` | `1` | Prefer firmware `libgbm`/`libdrm`/`libwayland-server` |
+| `FNH_VERBOSE` | off | FPS, heap, scene → `log-game.txt` |
+| `FNH_FRAMEPROF` | off | Per-frame breakdown (map/sprites/draw) |
 
 ## Troubleshooting
 
-The launcher checks what it can before starting anything, and everything it prints also goes
-to `fearandhunger/log.txt`. The game's own side writes `fearandhunger/log-game.txt`.
+Logs: `fearandhunger/log.txt` (launcher) and `log-game.txt` (game).
 
-**The first launch says "Cannot shrink the music".** The converter could not run the encoder
-it brings in `tools/aarch64/`. The game still starts, but its music takes twice the memory it
-should. `log.txt` has the reason; please report it. Converting on a PC (see [Play](#4-play))
-gets around it.
+| Message / symptom | Fix |
+|-------------------|-----|
+| "Cannot shrink the music" | Encoder in `tools/aarch64/` failed. Game still runs (uses more RAM). Check `log.txt` |
+| Black screen a few minutes | Old PortMaster without progress window — wait or update |
+| "Game files not found" | Need `www/index.html` + `www/js/rpg_core.js` |
+| "no DRM/KMS graphics" | Wrong firmware |
+| Missing libraries | Drop aarch64 builds into `libs.aarch64/` and report the list |
+| "no swap could be set up" | zram module missing → game will crawl on 1 GB |
+| `gbm_create_device` crash | Chromium loaded wrong `libgbm`. Launcher prefers firmware copy |
+| Black screen | Try `FNH_GL_ARGS=--use-angle=gl` or `FNH_GL_ARGS=" "` |
+| Runs badly | `FNH_VERBOSE=1` / `FNH_FRAMEPROF=1` → see [PERFORMANCE.md](PERFORMANCE.md) |
 
-**The first launch sits on a black screen for a few minutes.** That is the audio being
-prepared on a PortMaster too old to have the message window that shows it. Wait it out, or
-update PortMaster. `log.txt` lists each track as it is done.
-
-**"Game files not found."** The `www` folder is not where the port looks, or only part of it
-arrived. It wants `fearandhunger/www/index.html` and `fearandhunger/www/js/rpg_core.js` to
-exist. A common miss is copying the folder *containing* `www` instead of `www` itself.
-
-**"This firmware has no DRM/KMS graphics."** Step 1. Nothing in the port can work around it.
-
-**"This device is missing libraries the engine needs," with a list.** Your firmware is short
-of something Chromium wants that is not already in `libs.aarch64/`. Drop aarch64 builds of the
-named libraries in there - and please report the list, because it belongs in the port rather
-than in your hands.
-
-**"WARNING: no swap could be set up."** The port could not create its compressed swap, and on
-a 1 GB device the game will crawl. Usually means the `zram` module is missing from the kernel.
-
-**`log.txt` has `ERROR:` lines from Chromium.** Most are Chromium looking for desktop
-services a handheld does not have, and none of them is network traffic. `dbus` lines are
-Chromium asking a session bus - a socket between local processes - about screensavers and
-media keys whenever the music changes; ROCKNIX gives it an address it cannot parse, and
-nothing is lost when the ask fails. `libva` and `Vulkan`
-lines are hardware video decoding and Vulkan being probed and found missing; the port turns
-both off, so they should be gone. `Killed` at the end, followed by `GPU state invalid`, is
-what quitting with Start + Select looks like: gptokeyb2 ends the engine with SIGKILL.
-
-**It crashes straight away, with `gbm_create_device` in `log.txt`.** Chromium has loaded the
-`libgbm` from `libs.aarch64/` instead of the firmware's, and the two Mesa builds do not mix.
-The launcher prefers the firmware's copy and says which it found on the line starting
-`GPU libraries from the firmware`; if that reads `none`, please report where your firmware
-keeps `libgbm.so.1`.
-
-**The screen stays black.** Try a different GL backend before concluding anything:
-
-```
-cd /roms/ports
-FNH_GL_ARGS=--use-angle=gl ./"Fear & Hunger.sh"
-FNH_GL_ARGS=" " ./"Fear & Hunger.sh"
-```
-
-**It runs, but badly.** `FNH_VERBOSE=1` writes the frame rate and the current scene to
-`log-game.txt`; `FNH_FRAMEPROF=1` adds a breakdown of where each frame went. Both are safe to
-leave on. [PERFORMANCE.md](PERFORMANCE.md) explains how to read them.
+Chromium `ERROR:` lines (dbus, libva, Vulkan) are normal on handhelds and harmless. `Killed` + `GPU state invalid` = clean quit via Start+Select.
 
 ## Known issues
 
-**The render scale clips window contents, cause unknown.** At anything below 1 the name
-entry window loses about a quarter of its canvas, the avatar with it. Three explanations were
-tested on hardware and all three were wrong: it is not `WindowLayer`'s scissor (a window full
-of coloured edge stripes renders perfectly through the window layer at 0.6), it is not
-`DK_Name_Input` (which does not touch that scene), and rebuilding `Bitmap.snap` at the
-renderer's resolution throws `RangeError: offset is out of bounds` out of PIXI's extract,
-which cannot read a render texture whose resolution is not 1. The default is now 1, which
-sidesteps it entirely and, with the fullscreen filters off, costs nothing measurable.
-
-**Fullscreen filters are off by default.** That is a visible change: the game uses zoomblur
-for its dizzy, dragged-under moments and the port drops it. `FNH_FILTERS=99` puts it back.
-
-**`text_knight` never loads, on any platform.** The game ships it as `text_knight.psd`
-rather than a PNG, so the knight's description is missing on Windows too. Nothing to fix here.
-
-**`physical_attack_animation.js` throws a SyntaxError at startup, on any platform.** It asks
-`PluginManager` for its parameters under a name it is not registered with, gets an empty
-object, and evals `"[object Object]"`. The plugin has therefore never worked.
+- Render scale < 1 clips name-entry window (cause unknown; default left at 1).
+- Filters off by default (visible change; restore with `FNH_FILTERS=99`).
+- `text_knight.psd` never loads (same on Windows).
+- `physical_attack_animation.js` SyntaxError at startup (plugin never worked on any platform).
 
 ## Performance
 
-Short version: it runs at roughly 17-24 fps walking a dungeon, with the game's logic at full
-speed, and the frame rate is even rather than spiky. Getting there needed four things, and
-the launcher and `patch.js` do all of them for you: a gigabyte of zram, because the device
-ships with no swap and otherwise pages the engine's own code off the SD card; a cap on the
-fixed timestep, because the game's own `TDDP_FluidTimestep` runs the map logic twice for
-every frame that misses 16.6 ms and then asks for a third; skipping the logic of events that
-are off screen, of which a dungeon has three hundred; and turning off the fullscreen shader
-filters, which cost more than everything else put together.
+~17–24 fps in dungeons, logic at full speed, even frame pacing. Key enablers:
 
-[PERFORMANCE.md](PERFORMANCE.md) has the measurements, including the ones that disproved the
-things I was sure of.
+1. 1 GB zram (device has no swap)
+2. Cap on fixed timestep (`FNH_MAX_STEPS`)
+3. Skip off-screen event logic (`FNH_CULL`)
+4. Disable fullscreen filters
+
+Details and measurements in [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Building the runtime
 
-The engine is not in this repository: `libnw.so` alone is 283 MB, past what GitHub accepts in a single file. Fetch and trim it with:
+Engine is not in the repo (`libnw.so` alone is 283 MB). Fetch:
 
+```bash
+./fetch-runtime.sh   # NW.js aarch64, trimmed
+./fetch-libs.sh      # 45 Debian packages → libs.aarch64/
+./fetch-tools.sh     # oggdec/oggenc + deps → tools/aarch64/
+./build-release.sh   # → dist/fearandhunger.zip
 ```
-./fetch-runtime.sh
-./fetch-libs.sh
-./fetch-tools.sh
-```
-
-The first downloads the official NW.js aarch64 tarball, checks it against a pinned SHA-256, drops 227 of the 228 locale packs, the software rasteriser, the high-dpi asset pack and the crash reporter, and installs the rest into `fearandhunger/nwjs/`. The second pulls 45 pinned Debian packages, flattens them to their SONAMEs in `fearandhunger/libs.aarch64/`, and prints what it still expects the firmware to provide. The third pulls `oggdec` and `oggenc` from vorbis-tools with the five libraries they link, six Ubuntu 22.04 arm64 packages pinned by SHA-256, into `fearandhunger/tools/aarch64/`: about a megabyte, for the first launch's audio conversion.
-
-Then `./build-release.sh` stages the metadata the way a released port expects and writes `dist/fearandhunger.zip`, refusing to run if any of those is missing or if any game file has found its way into the port folder.
 
 ## Licence
 
-The port's own files are MIT, see [LICENSE](LICENSE). The engine and the system libraries it
-brings carry their own terms, set out in `fearandhunger/licenses/README.txt`; the libraries
-are stock Debian binaries, unmodified, with their source packages named in
-`fearandhunger/libs.aarch64/MANIFEST.txt`, and the audio tools are stock Ubuntu binaries,
-named the same way in `fearandhunger/tools/aarch64/MANIFEST.txt`. The game itself is never
-redistributed.
+Port files: MIT ([LICENSE](LICENSE)).  
+Engine & bundled libraries: their own terms (`fearandhunger/licenses/`, `MANIFEST.txt`).  
+Game itself is never redistributed.
