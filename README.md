@@ -97,22 +97,9 @@ the other way round.
 
 Start it from the Ports menu.
 
-The first launch prepares the audio before the game starts, and PortMaster's message window
-counts the tracks off as it goes. It rewrites 33 music and ambience tracks to mono, which
-shrinks them from 181 MB to about 21 MB and takes a few minutes. This matters more than it
-sounds: MV holds whole tracks in memory uncompressed, and the longest one in this game is
-109 MB of RAM by itself. It happens once - every launch after that checks, finds nothing to
-do and goes straight to the game. If it is interrupted, the next launch picks up where it
-stopped; a track is only replaced once its new version is complete. Sound effects are left
-alone. Loop points survive: they are counted in samples, so they are rescaled along with the
-sample rate.
+When you launch the game for the first time, the port will begin converting tracks to mono format; this is necessary to reduce RAM usage because RPG Maker MV stores all tracks in RAM in uncompressed form, which is a waste with only 1 GB of RAM.
 
-Every launch also sets up a gigabyte of compressed swap, which is what keeps the game out of
-trouble on a 1 GB device, and gives it back when you quit.
-
-The converter also runs on a PC, which is faster, if you would rather do it before copying:
-`python3 tools/optimize_audio.py /path/to/www/audio --inplace`, with `ffmpeg` or vorbis-tools
-installed. The first launch then finds the tracks already done.
+If, for some reason, the game crashes, the launcher will not reconvert tracks that have already been converted; it will resume from the track where the launcher was closed.
 
 ## Controls
 
