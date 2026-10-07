@@ -6,9 +6,8 @@ creating Fear & Hunger, which is not interested in whether you are having a good
 **Playable.** Boots, plays, fights, saves and loads on an RG40XX V at roughly 17-24 fps in a
 dungeon. Not smooth, but a game you can sit down with.
 
-**Needs firmware with DRM/KMS graphics - ROCKNIX, not KNULLI.** The engine is Chromium, which
-draws through X11, Wayland or DRM/KMS and nothing else, and KNULLI on this hardware has none
-of the three. The launcher checks before it starts and says so by name.
+> [!WARNING]
+Only ROCKNIX, since Chromium—on which RPG Maker MV is based—requires DRM/KMS, and the port uses NW.js, which also requires the X11/Wayland compositor.
 
 The game is paid, so only the engine ships here: NW.js 0.117 for aarch64, which is Chromium
 with Node, because RPG Maker MV games are web pages and there is no native engine to swap in
