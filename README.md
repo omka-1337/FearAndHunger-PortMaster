@@ -33,10 +33,6 @@ This project uses AI to write code and documentation. All code and documentation
 
 ## Installing
 
-You need: the game on Steam, a way to copy files onto the SD card, and a handheld running
-firmware with DRM/KMS graphics. Budget half an hour, most of it copying files. Nothing has to
-be run on the PC.
-
 ### 1. Check your firmware
 
 ROCKNIX only. Port checks and reports if DRM/KMS is missing.
