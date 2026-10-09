@@ -78,18 +78,18 @@ If, for some reason, the game crashes, the launcher will not reconvert tracks th
 
 ## Controls
 
-| Button | Action |
-|--|--|
-| D-Pad | Move, menu navigation |
-| B | Confirm, talk, interact |
-| A | Cancel, open the menu |
-| Y | Dash |
-| X | Backspace, for the name entry screen |
-| L1 / R1 | Page up and down in long lists |
-| Start | Menu |
-| Start + Select | Quit |
+| Button | Key | Action |
+|--|--|--|
+| D-Pad | ⬅ / ➡, ⬆ / ⬇ | Move, menu navigation |
+| B | Enter | Confirm, talk, interact |
+| A | Escape | Cancel, open the menu |
+| Y | Shift | Dash |
+| X | Backspace | For the name entry screen |
+| L1 / R1 | Q / W | Page up and down in long lists |
+| Start | Escape | Menu |
 
-Face buttons follow device labels (Nintendo-style: Confirm on B). Keyboard-only game; bindings via gptokeyb2 + `fearandhunger.gptk`.
+> [!TIP]
+> You can change the key bindings in `fearandhunger.gptk` in the port folder.
 
 ## What the port changes, and why
 
