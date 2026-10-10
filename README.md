@@ -10,7 +10,7 @@ dungeon. Not smooth, but a game you can sit down with.
 Only ROCKNIX, since Chromium—on which RPG Maker MV is based—requires DRM/KMS, and the port uses NW.js, which also requires the X11/Wayland compositor.
 
 > [!IMPORTANT]
-This is a paid title. To use the port, you must have a legally purchased copy of the game on [Steam](https://store.steampowered.com/app/1002300/Fear__Hunger/).
+This is a paid title. To play this port, you must have a legally purchased copy of the game on [Steam](https://store.steampowered.com/app/1002300/Fear__Hunger/).
 
 ## Disclaimer
 
